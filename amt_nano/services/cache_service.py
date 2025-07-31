@@ -1,18 +1,10 @@
 """
 Cache service for managing entity extraction results.
 """
-from typing import Any, Dict, List, Optional, Union
-
-from lib.db.surreal import AsyncDbController, DbController
-from settings import logger
-
-"""
-Caching module for entity extraction results in SurrealDB.
-"""
 import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from lib.db.surreal import AsyncDbController, DbController
+from amt_nano.db.surreal import AsyncDbController, DbController
 from settings import logger
 
 

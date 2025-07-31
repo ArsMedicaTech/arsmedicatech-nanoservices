@@ -3,7 +3,7 @@ This module provides a controller for graph operations in SurrealDB.
 """
 from typing import Any, Callable, Coroutine, Dict, Optional, Union
 
-from lib.db.surreal import AsyncDbController, DbController
+from amt_nano.db.surreal import AsyncDbController, DbController
 
 
 class GraphController:

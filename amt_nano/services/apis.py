@@ -5,8 +5,8 @@ import time
 from typing import Any, Dict, List, Tuple
 
 import requests
-
 from lib.logger import Logger
+
 from settings import logger
 
 icd10_codes = {

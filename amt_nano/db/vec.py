@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional, cast
 
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam
-
 # Import surrealdb with type ignore since it lacks proper stubs
 from surrealdb import AsyncSurreal  # type: ignore[import-untyped]
 

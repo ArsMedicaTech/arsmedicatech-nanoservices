@@ -17,3 +17,5 @@ typings/
 
 config/*.apps.googleusercontent.com.json
 config.py
+
+proto/

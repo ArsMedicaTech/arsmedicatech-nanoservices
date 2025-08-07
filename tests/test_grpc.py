@@ -1,13 +1,10 @@
 """"""
 
-from amt_nano.proto.google.fhir.proto.r5.core import codes_pb2, datatypes_pb2
 from amt_nano.proto.google.fhir.proto.r5.core.resources import patient_pb2
 from amt_nano.services.grpc_service import PatientController
 
 controller = PatientController(
-    address="my.grpc.server:443",
-    secure=True,
-    cert_path="path/to/ca.crt"
+    address="my.grpc.server:443", secure=True, cert_path="path/to/ca.crt"
 )
 
 # Create and send a patient

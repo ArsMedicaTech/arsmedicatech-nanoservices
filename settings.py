@@ -132,3 +132,6 @@ print("REDIRECT URI:", REDIRECT_URI)
 print("COGNITO LOGIN URL:", COGNITO_LOGIN_URL)
 
 print("APP URL:", APP_URL)
+
+
+GRPC_URL = os.environ.get("GRPC_URL", "localhost:50051")

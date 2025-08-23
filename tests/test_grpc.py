@@ -1,7 +1,7 @@
 """"""
 
-from amt_nano.proto.google.fhir.proto.r5.core.resources import patient_pb2
 from amt_nano.services.grpc_service import PatientController
+from google.fhir.proto.r5.core.resources import patient_pb2
 
 controller = PatientController(
     address="my.grpc.server:443", secure=True, cert_path="path/to/ca.crt"

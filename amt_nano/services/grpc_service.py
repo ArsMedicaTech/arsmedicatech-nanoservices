@@ -28,9 +28,9 @@ class GRPCController:
         return method(request_obj)
 
 
-from amt_nano.proto.arsmedicatech.fhir_sync_pb2 import Patient, PatientRef
-from amt_nano.proto.arsmedicatech.fhir_sync_pb2_grpc import FhirSyncStub
-from amt_nano.proto.google.fhir.proto.r5.core.resources import patient_pb2
+from arsmedicatech.fhir_sync_pb2 import Patient, PatientRef
+from arsmedicatech.fhir_sync_pb2_grpc import FhirSyncStub
+from google.fhir.proto.r5.core.resources import patient_pb2
 
 
 class PatientController(GRPCController):

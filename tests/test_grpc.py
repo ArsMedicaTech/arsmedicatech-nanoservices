@@ -1,7 +1,7 @@
 """"""
 
 from amt_nano.services.grpc_service import PatientController
-from google.fhir.proto.r5.core.resources import patient_pb2
+from arsmedicatech.fhir_sync_pb2 import Patient
 from settings import GRPC_URL
 
 controller = PatientController(address=GRPC_URL, secure=True)

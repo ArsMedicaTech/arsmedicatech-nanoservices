@@ -30,7 +30,6 @@ class GRPCController:
 
 from arsmedicatech.fhir_sync_pb2 import Patient, PatientRef
 from arsmedicatech.fhir_sync_pb2_grpc import FhirSyncStub
-from google.fhir.proto.r5.core.resources import patient_pb2
 
 
 class PatientController(GRPCController):
@@ -50,14 +49,10 @@ class PatientController(GRPCController):
         request = PatientRef(id=patient_id)
         return self.call("GetPatient", request)
 
-    def update_patient(self, patient: patient_pb2.Patient):
+    def update_patient(self, patient: Patient):
         # Convert from FHIR R5 Patient to our Patient message
         # You'll need to implement this conversion based on your needs
-        request = Patient(
-            id=patient.id.value,
-            # Add other field mappings as needed
-        )
-        return self.call("UpsertPatient", request)
+        return self.call("UpsertPatient", patient)
 
     # def delete_patient(self, patient_id: str):
     #     request = DeletePatientRequest(id=patient_id)

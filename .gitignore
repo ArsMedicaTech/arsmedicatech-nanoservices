@@ -19,3 +19,7 @@ config/*.apps.googleusercontent.com.json
 config.py
 
 proto/
+google/
+arsmedicatech/
+
+*.egg-info/

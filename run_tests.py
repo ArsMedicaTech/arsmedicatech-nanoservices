@@ -56,6 +56,8 @@ def main():
         help="Run tests in parallel with specified number of workers",
     )
 
+    parser.add_argument("--print", "-p", action="store_true", help="Print test output")
+
     args = parser.parse_args()
 
     # Base pytest command - use sys.executable to ensure we use the current Python environment
@@ -96,6 +98,9 @@ def main():
 
     if args.parallel:
         cmd.extend(["-n", str(args.parallel)])
+
+    if args.print:
+        cmd.append("-s")
 
     # Run the tests
     success = run_command(cmd, description)

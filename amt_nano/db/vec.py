@@ -146,7 +146,7 @@ class Vec:
         :param embed_model: The OpenAI model to use for embeddings (default: "text-embedding-3-small").
         :param inference_model: The OpenAI model to use for inference (default: "gpt-4.1-nano").
         """
-        self.client = openai_client
+        self.client: Optional[AsyncOpenAI] = openai_client
         self.system_prompt = system_prompt
         self.db_url = db_url
         self.embed_model = embed_model
@@ -209,10 +209,10 @@ class Vec:
         await db.use(SURREALDB_NAMESPACE, SURREALDB_DATABASE)  # type: ignore[no-untyped-call]
 
         res = await db.query("INFO FOR DB;")  # type: ignore[no-untyped-call]
-        logger.debug("Database info:", res)
+        logger.debug(f"Database info: {res}")
 
         res = await db.query("INFO FOR TABLE knowledge;")  # type: ignore[no-untyped-call]
-        logger.debug("Table info:", res)
+        logger.debug(f"Table info: {res}")
 
         if data_type == "jsonl":
             docs: List[Dict[str, Any]] = [
@@ -251,7 +251,7 @@ class Vec:
             logger.debug("[SEED] Insert complete.")
 
         res = await db.query("SELECT id, text FROM knowledge LIMIT 5;")  # type: ignore[no-untyped-call]
-        logger.debug("Sample records:", res)
+        logger.debug(f"Sample records: {res}")
 
     async def insert(self, batch: BatchList, db: Any) -> None:
         """
@@ -278,7 +278,7 @@ class Vec:
 
         texts = [d["text"] for d in batch_dicts]
         resp = await self.client.embeddings.create(model=self.embed_model, input=texts)
-        embeds = [e.embedding for e in resp.data]
+        embeds: List[List[float]] = [e.embedding for e in resp.data]
 
         inserted = 0
         for i, (b, e) in enumerate(zip(batch_dicts, embeds)):
@@ -324,15 +324,10 @@ class Vec:
             raise ValueError(
                 "This function requires an OpenAI client to be initialized."
             )
-        qvec = (
-            (
-                await self.client.embeddings.create(
-                    model=self.embed_model, input=[question]
-                )
-            )
-            .data[0]
-            .embedding
+        resp = await self.client.embeddings.create(
+            model=self.embed_model, input=[question]
         )
+        qvec: List[float] = resp.data[0].embedding
         db = AsyncSurreal(DB_URL)  # type: ignore[no-untyped-call]
         await db.connect()  # type: ignore[no-untyped-call]
         await db.signin({"username": SURREALDB_USER, "password": SURREALDB_PASS})  # type: ignore[no-untyped-call]
@@ -347,9 +342,9 @@ class Vec:
 
         try:
             res = await db.query(q, {"vec": qvec})  # type: ignore[no-untyped-call]
-            logger.debug("[DEBUG] Raw SurrealDB result:", json.dumps(res, indent=2))
+            logger.debug(f"[DEBUG] Raw SurrealDB result: {json.dumps(res, indent=2)}")
         except Exception as e:
-            logger.error("[ERROR] Exception while querying SurrealDB:", e)
+            logger.error(f"[ERROR] Exception while querying SurrealDB: {e}")
             return None
         finally:
             await db.close()  # type: ignore[no-untyped-call]

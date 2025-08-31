@@ -60,3 +60,57 @@ async def migrate():
         )
 
         print("\nDatabase population complete.")
+
+
+async def find_recommendations(new_patient_summary: str):
+    """Finds treatment recommendations for a new patient."""
+    print(f"Finding recommendations for new patient:\n'{new_patient_summary}'\n")
+
+    # 1. Initialize Embedding Model
+    model = SentenceTransformer(EMBEDDING_MODEL)
+
+    async with Surreal(SURREALDB_URL) as db:  # type: ignore
+        await db.signin({"user": "root", "pass": "root"})  # type: ignore
+        await db.use("test", "test")  # type: ignore
+
+        # 2. Generate the query vector for the new patient
+        query_vector = model.encode(new_patient_summary).tolist()
+
+        # 3. The Hybrid Graph-Vector Query
+        # This one SurrealQL query performs both the vector search and graph traversal.
+        hybrid_query = """
+            SELECT
+                id,
+                summary,
+                vector::similarity::cosine(embedding, $query_vector) AS similarity,
+                ->received_treatment->treatment.name AS treatments,
+                ->received_treatment.outcome->(SELECT status FROM ONLY $value) AS outcomes
+            FROM patient
+            WHERE embedding <|3|> $query_vector
+            ORDER BY similarity DESC;
+        """
+
+        print("Executing hybrid query...")
+        results = await db.query(hybrid_query, {"query_vector": query_vector})  # type: ignore
+
+        # 4. Process and Display the Results
+        print("\n--- Top 3 Similar Past Cases & Outcomes ---\n")
+
+        if results and results[0].get("result"):
+            similar_cases = results[0]["result"]
+            for i, case in enumerate(similar_cases):
+                print(
+                    f"Case #{i + 1}: Patient {case['id']} (Similarity: {case['similarity']:.2f})"
+                )
+                print(f"  Summary: {case['summary']}")
+                for j, treatment in enumerate(case["treatments"]):
+                    outcome_status = (
+                        case["outcomes"][j][0]
+                        if case["outcomes"] and case["outcomes"][j]
+                        else "Unknown"
+                    )
+                    print(f"  -> Treatment Taken: {treatment}")
+                    print(f"     Outcome: {outcome_status}")
+                print("-" * 20)
+        else:
+            print("No similar cases found.")

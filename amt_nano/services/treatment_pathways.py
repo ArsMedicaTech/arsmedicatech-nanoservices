@@ -7,7 +7,13 @@ from typing import Any, Dict, List
 from sentence_transformers import SentenceTransformer
 from surrealdb import Surreal  # type: ignore
 
-from settings import SURREALDB_URL
+from settings import (
+    SURREALDB_DATABASE,
+    SURREALDB_NAMESPACE,
+    SURREALDB_PASS,
+    SURREALDB_URL,
+    SURREALDB_USER,
+)
 from tests.test_pathways import OUTCOMES, PATIENTS, TREATMENT_RECORDS, TREATMENTS
 
 # This model creates a 384-dimension vector.
@@ -22,8 +28,8 @@ async def migrate():
     model = SentenceTransformer(EMBEDDING_MODEL)
 
     async with Surreal(SURREALDB_URL) as db:  # type: ignore
-        await db.signin({"user": "root", "pass": "root"})  # type: ignore
-        await db.use("test", "test")  # type: ignore
+        await db.signin({"user": SURREALDB_USER, "pass": SURREALDB_PASS})  # type: ignore
+        await db.use(SURREALDB_NAMESPACE, SURREALDB_DATABASE)  # type: ignore
 
         print("Connected to SurrealDB.")
 
@@ -72,8 +78,8 @@ async def find_recommendations(new_patient_summary: str):
     model = SentenceTransformer(EMBEDDING_MODEL)
 
     async with Surreal(SURREALDB_URL) as db:  # type: ignore
-        await db.signin({"user": "root", "pass": "root"})  # type: ignore
-        await db.use("test", "test")  # type: ignore
+        await db.signin({"user": SURREALDB_USER, "pass": SURREALDB_PASS})  # type: ignore
+        await db.use(SURREALDB_NAMESPACE, SURREALDB_DATABASE)  # type: ignore
 
         # 2. Generate the query vector for the new patient
         query_vector = model.encode(new_patient_summary).tolist()

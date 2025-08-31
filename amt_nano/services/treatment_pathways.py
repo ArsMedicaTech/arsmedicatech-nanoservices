@@ -5,7 +5,7 @@ Service for looking up treatment pathways using hybrid vector/graph search.
 from typing import Any, Dict, List
 
 from sentence_transformers import SentenceTransformer
-from surrealdb import Surreal  # type: ignore
+from surrealdb import AsyncSurreal  # type: ignore
 
 from settings import (
     SURREALDB_DATABASE,
@@ -31,7 +31,7 @@ async def migrate(
     # 1. Initialize Embedding Model
     model = SentenceTransformer(EMBEDDING_MODEL)
 
-    async with Surreal(SURREALDB_URL) as db:  # type: ignore
+    async with AsyncSurreal(SURREALDB_URL) as db:  # type: ignore
         await db.signin({"user": SURREALDB_USER, "pass": SURREALDB_PASS})  # type: ignore
         await db.use(SURREALDB_NAMESPACE, SURREALDB_DATABASE)  # type: ignore
 
@@ -81,7 +81,7 @@ async def find_recommendations(new_patient_summary: str):
     # 1. Initialize Embedding Model
     model = SentenceTransformer(EMBEDDING_MODEL)
 
-    async with Surreal(SURREALDB_URL) as db:  # type: ignore
+    async with AsyncSurreal(SURREALDB_URL) as db:  # type: ignore
         await db.signin({"user": SURREALDB_USER, "pass": SURREALDB_PASS})  # type: ignore
         await db.use(SURREALDB_NAMESPACE, SURREALDB_DATABASE)  # type: ignore
 

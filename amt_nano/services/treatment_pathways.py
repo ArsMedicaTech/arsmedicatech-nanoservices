@@ -2,6 +2,8 @@
 Service for looking up treatment pathways using hybrid vector/graph search.
 """
 
+from typing import Any, Dict, List
+
 from sentence_transformers import SentenceTransformer
 from surrealdb import Surreal  # type: ignore
 
@@ -91,16 +93,16 @@ async def find_recommendations(new_patient_summary: str):
         """
 
         print("Executing hybrid query...")
-        results = await db.query(hybrid_query, {"query_vector": query_vector})  # type: ignore
+        results: List[Dict[str, Any]] = await db.query(hybrid_query, {"query_vector": query_vector})  # type: ignore
 
         # 4. Process and Display the Results
         print("\n--- Top 3 Similar Past Cases & Outcomes ---\n")
 
         if results and results[0].get("result"):
-            similar_cases = results[0]["result"]
+            similar_cases: List[Dict[str, Any]] = results[0]["result"]
             for i, case in enumerate(similar_cases):
                 print(
-                    f"Case #{i + 1}: Patient {case['id']} (Similarity: {case['similarity']:.2f})"
+                    f"Case #{i + 1}: Patient {case['id']} (Similarity: {case['similarity']})"
                 )
                 print(f"  Summary: {case['summary']}")
                 for j, treatment in enumerate(case["treatments"]):

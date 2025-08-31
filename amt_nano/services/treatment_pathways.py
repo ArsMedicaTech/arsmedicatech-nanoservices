@@ -14,13 +14,17 @@ from settings import (
     SURREALDB_URL,
     SURREALDB_USER,
 )
-from tests.test_pathways import OUTCOMES, PATIENTS, TREATMENT_RECORDS, TREATMENTS
 
 # This model creates a 384-dimension vector.
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
 
-async def migrate():
+async def migrate(
+    patients: List[Dict[str, Any]],
+    treatments: List[Dict[str, Any]],
+    outcomes: List[Dict[str, Any]],
+    treatment_records: List[Dict[str, Any]],
+) -> None:
     """Connects to DB, generates embeddings, and populates the graph."""
     print("Starting database population...")
 
@@ -35,7 +39,7 @@ async def migrate():
 
         # 2. Generate and Insert Patient Data with Embeddings
         print("Generating embeddings and inserting patient data...")
-        for patient in PATIENTS:
+        for patient in patients:
             summary = patient.pop("summary")
             embedding = model.encode(summary).tolist()
             # The `CREATE` statement inserts the record and its vector
@@ -43,14 +47,14 @@ async def migrate():
 
         # 3. Insert Treatment and Outcome Nodes
         print("Inserting treatment and outcome nodes...")
-        for treatment in TREATMENTS:
+        for treatment in treatments:
             await db.create(treatment["id"], treatment)  # type: ignore
-        for outcome in OUTCOMES:
+        for outcome in outcomes:
             await db.create(outcome["id"], outcome)  # type: ignore
 
         # 4. Create Graph Relationships (Edges)
         print("Creating graph relationships...")
-        for record in TREATMENT_RECORDS:
+        for record in treatment_records:
             # The RELATE statement builds the graph connections
             await db.query(  # type: ignore
                 "RELATE $patient->received_treatment->$treatment SET outcome = $outcome",

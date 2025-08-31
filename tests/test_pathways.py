@@ -2,6 +2,10 @@
 Test suite for the treatment pathways service.
 """
 
+import asyncio
+
+from amt_nano.services.treatment_pathways import find_recommendations, migrate
+
 # --- Sample Clinical Data ---
 # In a real scenario, this would come from an EMR/EHR system.
 PATIENTS = [
@@ -67,3 +71,11 @@ TREATMENT_RECORDS = [
         "outcome": "outcome:positive",
     },
 ]
+
+if __name__ == "__main__":
+    asyncio.run(migrate(PATIENTS, TREATMENTS, OUTCOMES, TREATMENT_RECORDS))
+    asyncio.run(
+        find_recommendations(
+            "65-year-old male with a history of hypertension and type 2 diabetes, presenting with stable angina."
+        )
+    )

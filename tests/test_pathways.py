@@ -72,10 +72,19 @@ TREATMENT_RECORDS = [
     },
 ]
 
-if __name__ == "__main__":
+
+def test_pathways():
+    print("Running treatment pathways tests...\n")
     asyncio.run(migrate(PATIENTS, TREATMENTS, OUTCOMES, TREATMENT_RECORDS))
-    asyncio.run(
+    print("Migration complete.\n")
+    result = asyncio.run(
         find_recommendations(
             "65-year-old male with a history of hypertension and type 2 diabetes, presenting with stable angina."
         )
     )
+    print(f"Recommendations for new patient:\n{result}")
+    print("Recommendation search complete.\n")
+
+
+if __name__ == "__main__":
+    test_pathways()

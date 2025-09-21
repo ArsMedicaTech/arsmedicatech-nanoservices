@@ -32,7 +32,7 @@ async def migrate(
     model = SentenceTransformer(EMBEDDING_MODEL)
 
     async with AsyncSurreal(SURREALDB_URL) as db:  # type: ignore
-        await db.signin({"user": SURREALDB_USER, "pass": SURREALDB_PASS})  # type: ignore
+        await db.signin({"username": SURREALDB_USER, "password": SURREALDB_PASS})  # type: ignore
         await db.use(SURREALDB_NAMESPACE, SURREALDB_DATABASE)  # type: ignore
 
         print("Connected to SurrealDB.")
@@ -82,7 +82,7 @@ async def find_recommendations(new_patient_summary: str):
     model = SentenceTransformer(EMBEDDING_MODEL)
 
     async with AsyncSurreal(SURREALDB_URL) as db:  # type: ignore
-        await db.signin({"user": SURREALDB_USER, "pass": SURREALDB_PASS})  # type: ignore
+        await db.signin({"username": SURREALDB_USER, "password": SURREALDB_PASS})  # type: ignore
         await db.use(SURREALDB_NAMESPACE, SURREALDB_DATABASE)  # type: ignore
 
         # 2. Generate the query vector for the new patient

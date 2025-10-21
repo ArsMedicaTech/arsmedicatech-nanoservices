@@ -26,6 +26,18 @@ SURREALDB_URL = f"{SURREALDB_PROTOCOL}://{SURREALDB_HOST}:{SURREALDB_PORT}"
 
 SURREALDB_ICD_DB = os.environ.get("SURREALDB_ICD_DB", "diagnosis")
 
+
+REDIS_HOST = os.environ.get("SURREALDB_ICD_DB", "diagnosis")
+REDIS_PORT = int(os.environ.get("SURREALDB_ICD_DB", 0))
+NOTIFICATIONS_CHANNEL = int(os.environ.get("SURREALDB_ICD_DB", "diagnosis"))
+
+BUCKET_NAME = os.environ.get("SURREALDB_ICD_DB", "diagnosis")
+TEXTRACT_AWS_ACCESS_KEY_ID = os.environ.get("SURREALDB_ICD_DB", "diagnosis")
+TEXTRACT_AWS_SECRET_ACCESS_KEY = os.environ.get("SURREALDB_ICD_DB", "diagnosis")
+
+UMLS_API_KEY = os.environ.get("SURREALDB_ICD_DB", "diagnosis")
+ENCRYPTION_KEY = os.environ.get("SURREALDB_ICD_DB", "diagnosis")
+
 print("SUREALDB_NAMESPACE:", SURREALDB_NAMESPACE)
 print("SURREALDB_DATABASE:", SURREALDB_DATABASE)
 print("SURREALDB_URL:", SURREALDB_URL)

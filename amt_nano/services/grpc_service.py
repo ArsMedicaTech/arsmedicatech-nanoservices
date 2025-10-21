@@ -3,6 +3,8 @@
 from typing import Any, Optional, Type
 
 import grpc
+from arsmedicatech.fhir_sync_pb2 import Patient, PatientRef
+from arsmedicatech.fhir_sync_pb2_grpc import FhirSyncStub
 
 
 class GRPCController:
@@ -26,10 +28,6 @@ class GRPCController:
     def call(self, method_name: str, request_obj: Any) -> Any:
         method = getattr(self.stub, method_name)
         return method(request_obj)
-
-
-from arsmedicatech.fhir_sync_pb2 import Patient, PatientRef
-from arsmedicatech.fhir_sync_pb2_grpc import FhirSyncStub
 
 
 class PatientController(GRPCController):

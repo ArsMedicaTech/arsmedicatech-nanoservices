@@ -25,8 +25,8 @@ class GraphController:
     def _execute(
         self,
         func: Union[
-            Callable[[str, Optional[Dict[str, Any]]], Any],
-            Callable[[str, Optional[Dict[Any, Any]]], Coroutine[Any, Any, Any]],
+            Callable[[str, Dict[str, Any]], Any],
+            Callable[[str, Dict[Any, Any]], Coroutine[Any, Any, Any]],
         ],
         *args: Any,
         **kwargs: Any,

@@ -107,7 +107,7 @@ class ICDAutoCoderService:
         Returns a list of normalized entities.
         """
         # Convert List[Entity] to List[Dict[str, Any]] for the UMLS service
-        entities_as_dicts = [
+        entities_as_dicts: List[Entity] = [
             {
                 "text": entity["text"],  # type: ignore
                 "label": entity["label"],  # type: ignore
@@ -164,7 +164,7 @@ class ICDAutoCoderService:
         if cached_result:
             logger.info(f"Using cached entity results for text hash: {text_hash}")
             # Convert cached entities back to Entity format with dummy positions
-            cached_entities = []
+            cached_entities: List[Entity] = []
             for entity in cached_result.get("entities", []):
                 cached_entities.append(
                     Entity(
@@ -193,7 +193,7 @@ class ICDAutoCoderService:
         original_entities = self.ner_concept_extraction(self.text)
 
         # Filter for disease entities and preserve all position information
-        disease_entities = [
+        disease_entities: List[Dict[str, Any]] = [
             {
                 "text": entity["text"],  # type: ignore
                 "label": entity["label"],  # type: ignore
@@ -233,7 +233,7 @@ class ICDAutoCoderService:
         print("Matched ICD Codes:", entities_with_icd_codes)
 
         # Store results in cache (convert Entity objects to dictionaries)
-        entities_for_cache = []
+        entities_for_cache: List[Entity] = []
         for entity in entities_with_icd_codes:
             entities_for_cache.append(
                 {

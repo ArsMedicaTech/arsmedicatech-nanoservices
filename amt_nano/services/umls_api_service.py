@@ -5,7 +5,7 @@ UMLS API Service.
 import logging
 import time
 from functools import lru_cache
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import requests
 
@@ -40,7 +40,7 @@ class UMLSApiService:
         Search UMLS for a given string and return top matching concept info.
         """
 
-        params = {
+        params: Dict[str, Any] = {
             "string": term,
             "apiKey": self.api_key,
             "searchType": search_type,
@@ -93,12 +93,12 @@ class UMLSApiService:
         self,
         entities: List[Dict[str, Optional[Union[str, int]]]],
         sabs: Optional[List[str]] = ["SNOMEDCT_US", "ICD10CM"],
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
         """
         Normalize a list of NER entity dicts: {'text': ..., 'label': ..., ...}
         Returns a list with added 'cui' and 'preferred_name' fields.
         """
-        results = []
+        results: List[Dict[str, Any]] = []
         for ent in entities:
             norm = self.search_concept(ent["text"], sabs=sabs)
             if norm:

@@ -216,9 +216,9 @@ class Vec:
 
         if data_type == "jsonl":
             docs: List[Dict[str, Any]] = [
-                json.loads(l)
-                for l in open(data_source, "r", encoding="utf-8")
-                if l.strip()
+                json.loads(new_line)
+                for new_line in open(data_source, "r", encoding="utf-8")
+                if new_line.strip()
             ]
         elif data_type == "json":
             with open(data_source, "r", encoding="utf-8") as f:

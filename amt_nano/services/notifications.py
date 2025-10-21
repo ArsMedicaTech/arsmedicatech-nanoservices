@@ -5,8 +5,9 @@ Notifications Service
 import json
 from typing import Any
 
-from lib.data_types import EventData, UserID
-from lib.services.redis_client import get_redis_connection
+from amt_nano.data_types import EventData, UserID
+
+from amt_nano.services.redis_client import get_redis_connection
 
 
 def publish_event(user_id: UserID, event_data: EventData) -> None:

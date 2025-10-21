@@ -1,6 +1,7 @@
 """
 This module provides a controller for graph operations in SurrealDB.
 """
+
 from typing import Any, Callable, Coroutine, Dict, Optional, Union
 
 from amt_nano.db.surreal import AsyncDbController, DbController
@@ -24,11 +25,11 @@ class GraphController:
     def _execute(
         self,
         func: Union[
-            Callable[[str, Optional[Dict[str, Any]]], Any],
-            Callable[[str, Optional[Dict[Any, Any]]], Coroutine[Any, Any, Any]]
+            Callable[[str, Dict[str, Any]], Any],
+            Callable[[str, Dict[Any, Any]], Coroutine[Any, Any, Any]],
         ],
         *args: Any,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> Any:
         """
         Helper method to handle sync/async execution
@@ -39,15 +40,16 @@ class GraphController:
         """
         if self._is_async:
             import asyncio
+
             return asyncio.ensure_future(func(*args, **kwargs))
         return func(*args, **kwargs)
 
     def relate(
-            self,
-            from_record: str,  # e.g., "person:123"
-            edge_table: str,  # e.g., "order"
-            to_record: str,  # e.g., "product:456"
-            edge_data: Optional[Dict[str, Any]] = None  # Optional data for the edge
+        self,
+        from_record: str,  # e.g., "person:123"
+        edge_table: str,  # e.g., "order"
+        to_record: str,  # e.g., "product:456"
+        edge_data: Optional[Dict[str, Any]] = None,  # Optional data for the edge
     ) -> Any:
         """
         Create a relationship between two records
@@ -65,6 +67,7 @@ class GraphController:
         if edge_data:
             # Convert dict to SurrealQL content format
             from typing import List
+
             content_parts: List[str] = []
             for key, value in edge_data.items():
                 # Handle special arrow syntax for references
@@ -73,7 +76,7 @@ class GraphController:
                 elif isinstance(value, str) and value.startswith("<-"):
                     content_parts.append(f"{key}: {value}")
                 elif isinstance(value, str):
-                    content_parts.append(f"{key}: \"{value}\"")
+                    content_parts.append(f'{key}: "{value}"')
                 else:
                     content_parts.append(f"{key}: {value}")
 
@@ -82,7 +85,9 @@ class GraphController:
 
         return self._execute(self.db.query, query)
 
-    def get_relations(self, start_node: str, edge_table: str, end_table: str, direction: str = "->") -> Any:
+    def get_relations(
+        self, start_node: str, edge_table: str, end_table: str, direction: str = "->"
+    ) -> Any:
         """
         Get records connected via outgoing relationships
 
@@ -93,7 +98,9 @@ class GraphController:
         :return: Connected records
         """
         # Example: "SELECT ->HAS_SYMPTOM->symptom FROM diagnosis:depression"
-        query = f"SELECT {direction}{edge_table}{direction}{end_table} FROM {start_node}"
+        query = (
+            f"SELECT {direction}{edge_table}{direction}{end_table} FROM {start_node}"
+        )
         return self._execute(self.db.query, query)
 
     def count_connections(self) -> Any:
@@ -129,11 +136,11 @@ class AsyncGraphController:
         self.db = async_db_controller
 
     async def relate(
-            self,
-            from_record: str,  # e.g., "person:123"
-            edge_table: str,  # e.g., "order"
-            to_record: str,  # e.g., "product:456"
-            edge_data: Optional[Dict[str, Any]] = None  # Optional data for the edge
+        self,
+        from_record: str,  # e.g., "person:123"
+        edge_table: str,  # e.g., "order"
+        to_record: str,  # e.g., "product:456"
+        edge_data: Optional[Dict[str, Any]] = None,  # Optional data for the edge
     ) -> Any:
         """
         Create a relationship between two records
@@ -151,6 +158,7 @@ class AsyncGraphController:
         if edge_data:
             # Convert dict to SurrealQL content format
             from typing import List
+
             content_parts: List[str] = []
             for key, value in edge_data.items():
                 # Handle special arrow syntax for references
@@ -159,7 +167,7 @@ class AsyncGraphController:
                 elif isinstance(value, str) and value.startswith("<-"):
                     content_parts.append(f"{key}: {value}")
                 elif isinstance(value, str):
-                    content_parts.append(f"{key}: \"{value}\"")
+                    content_parts.append(f'{key}: "{value}"')
                 else:
                     content_parts.append(f"{key}: {value}")
 
@@ -168,7 +176,9 @@ class AsyncGraphController:
 
         return await self.db.query(query)
 
-    async def get_relations(self, start_node: str, edge_table: str, end_table: str, direction: str = "->") -> Any:
+    async def get_relations(
+        self, start_node: str, edge_table: str, end_table: str, direction: str = "->"
+    ) -> Any:
         """
         Get records connected via outgoing relationships
 
@@ -179,7 +189,9 @@ class AsyncGraphController:
         :return: Connected records
         """
         # Example: "SELECT ->HAS_SYMPTOM->symptom FROM diagnosis:depression"
-        query = f"SELECT {direction}{edge_table}{direction}{end_table} FROM {start_node}"
+        query = (
+            f"SELECT {direction}{edge_table}{direction}{end_table} FROM {start_node}"
+        )
         return await self.db.query(query)
 
     async def count_connections(self) -> Any:

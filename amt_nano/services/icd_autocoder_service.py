@@ -1,12 +1,15 @@
 """
 ICD Autocoder Service.
 """
+
 from typing import Any, Dict, List, Optional, TypedDict, Union
 
 from amt_nano.db.surreal import DbController
-from amt_nano.services.cache_service import (create_text_hash,
-                                             get_entity_cache,
-                                             store_entity_cache)
+from amt_nano.services.cache_service import (
+    create_text_hash,
+    get_entity_cache,
+    store_entity_cache,
+)
 from amt_nano.services.umls_api_service import UMLSApiService
 from settings import UMLS_API_KEY, logger
 
@@ -15,6 +18,7 @@ class Entity(TypedDict, total=False):
     """
     Represents a named entity extracted from text.
     """
+
     text: str
     label: str
     start_char: int
@@ -27,21 +31,21 @@ class Entity(TypedDict, total=False):
 def deduplicate(entities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Deduplicate entities based on their text content while preserving position information.
-    
+
     This function keeps the longest version of each unique entity text while preserving
     the original character positions (start_char, end_char) from the first occurrence
     of that entity in the text. This is important for frontend highlighting.
-    
+
     :param entities: List - A list of entities, each with a 'text' attribute and position info.
     :return: List - A list of deduplicated entities, keeping the longest version of each unique text.
     """
     seen: set[str] = set()
     deduped: List[Dict[str, Any]] = []
-    
+
     # Sort by text length (longest first) to keep the most specific version
     # The position information is preserved from the original entity
-    for entity in sorted(entities, key=lambda x: -(len(x['text']))):
-        key = entity['text'].lower().strip(" .,:;")
+    for entity in sorted(entities, key=lambda x: -(len(x["text"]))):
+        key = entity["text"].lower().strip(" .,:;")
         if key not in seen:
             deduped.append(entity)
             seen.add(key)
@@ -53,6 +57,7 @@ class ICDAutoCoderService:
     A service for extracting named entities from text using an external NER API and then normalizing them using UMLS.
     The service also performs ICD code matching.
     """
+
     def __init__(self, text: str) -> None:
         self.text = text
 
@@ -88,7 +93,7 @@ class ICDAutoCoderService:
                 text=entity["text"],
                 label=entity["label"],
                 start_char=entity["start_char"],
-                end_char=entity["end_char"]
+                end_char=entity["end_char"],
             )
             for entity in entities
         ]
@@ -102,25 +107,25 @@ class ICDAutoCoderService:
         Returns a list of normalized entities.
         """
         # Convert List[Entity] to List[Dict[str, Any]] for the UMLS service
-        entities_as_dicts = [
+        entities_as_dicts: List[Entity] = [
             {
                 "text": entity["text"],  # type: ignore
                 "label": entity["label"],  # type: ignore
                 "start_char": entity["start_char"],  # type: ignore
-                "end_char": entity["end_char"]  # type: ignore
+                "end_char": entity["end_char"],  # type: ignore
             }
             for entity in ner_entities
         ]
 
         normalized: List[Dict[str, Any]] = self.umls_service.normalize_entities(entities_as_dicts)  # type: ignore
-        
+
         normalized_entities = [
             Entity(
                 text=str(entity.get("text", "")),
                 label=str(entity.get("label", "")),
                 start_char=int(entity.get("start_char", 0)),
                 end_char=int(entity.get("end_char", 0)),
-                cui=entity.get("cui")
+                cui=entity.get("cui"),
             )
             for entity in normalized
         ]
@@ -153,54 +158,61 @@ class ICDAutoCoderService:
         """
         # Create hash of the text for caching
         text_hash = create_text_hash(self.text)
-        
+
         # Check cache first
         cached_result = get_entity_cache(self.db, text_hash)
         if cached_result:
             logger.info(f"Using cached entity results for text hash: {text_hash}")
             # Convert cached entities back to Entity format with dummy positions
-            cached_entities = []
+            cached_entities: List[Entity] = []
             for entity in cached_result.get("entities", []):
-                cached_entities.append(Entity(
-                    text=entity.get("text", ""),
-                    label=entity.get("label", ""),
-                    start_char=0,  # Dummy position since we don't store positions
-                    end_char=len(entity.get("text", "")),
-                    cui=entity.get("cui"),
-                    icd10cm=entity.get("icd10cm"),
-                    icd10cm_name=entity.get("icd10cm_name")
-                ))
-            
+                cached_entities.append(
+                    Entity(
+                        text=entity.get("text", ""),
+                        label=entity.get("label", ""),
+                        start_char=0,  # Dummy position since we don't store positions
+                        end_char=len(entity.get("text", "")),
+                        cui=entity.get("cui"),
+                        icd10cm=entity.get("icd10cm"),
+                        icd10cm_name=entity.get("icd10cm_name"),
+                    )
+                )
+
             return {
                 "entities": cached_entities,
                 "normalized_entities": cached_entities,
                 "icd_codes": cached_entities,
-                "cached": True
+                "cached": True,
             }
-        
-        logger.info(f"No cache found for text hash: {text_hash}, processing with UMLS API")
-        
+
+        logger.info(
+            f"No cache found for text hash: {text_hash}, processing with UMLS API"
+        )
+
         # Step 1: Extract entities from text
         original_entities = self.ner_concept_extraction(self.text)
-        
+
         # Filter for disease entities and preserve all position information
-        disease_entities = [
+        disease_entities: List[Dict[str, Any]] = [
             {
                 "text": entity["text"],  # type: ignore
                 "label": entity["label"],  # type: ignore
                 "start_char": entity["start_char"],  # type: ignore
-                "end_char": entity["end_char"]  # type: ignore
+                "end_char": entity["end_char"],  # type: ignore
             }
-            for entity in original_entities 
-            if entity["label"] == 'DISEASE'  # type: ignore
+            for entity in original_entities
+            if entity["label"] == "DISEASE"  # type: ignore
         ]
         deduplicated_entities = deduplicate(disease_entities)
 
         print("Number of Entities Extracted:", len(deduplicated_entities))
-        print("Deduplicated entities with positions:", [
-            f"{e['text']} ({e['start_char']}-{e['end_char']})" 
-            for e in deduplicated_entities
-        ])
+        print(
+            "Deduplicated entities with positions:",
+            [
+                f"{e['text']} ({e['start_char']}-{e['end_char']})"
+                for e in deduplicated_entities
+            ],
+        )
 
         # Step 2: Normalize entities using UMLS
         # Convert to Entity format for normalization, preserving positions
@@ -209,7 +221,7 @@ class ICDAutoCoderService:
                 text=entity["text"],
                 label=entity["label"],
                 start_char=entity["start_char"],
-                end_char=entity["end_char"]
+                end_char=entity["end_char"],
             )
             for entity in deduplicated_entities
         ]
@@ -221,16 +233,18 @@ class ICDAutoCoderService:
         print("Matched ICD Codes:", entities_with_icd_codes)
 
         # Store results in cache (convert Entity objects to dictionaries)
-        entities_for_cache = []
+        entities_for_cache: List[Entity] = []
         for entity in entities_with_icd_codes:
-            entities_for_cache.append({
-                "text": entity["text"],  # type: ignore
-                "label": entity["label"],  # type: ignore
-                "cui": entity.get("cui"),
-                "icd10cm": entity.get("icd10cm"),
-                "icd10cm_name": entity.get("icd10cm_name")
-            })
-        
+            entities_for_cache.append(
+                {
+                    "text": entity["text"],  # type: ignore
+                    "label": entity["label"],  # type: ignore
+                    "cui": entity.get("cui"),
+                    "icd10cm": entity.get("icd10cm"),
+                    "icd10cm_name": entity.get("icd10cm_name"),
+                }
+            )
+
         store_entity_cache(self.db, text_hash, entities_for_cache, "text")  # type: ignore
         logger.info(f"Stored entity results in cache for text hash: {text_hash}")
 
@@ -238,6 +252,5 @@ class ICDAutoCoderService:
             "entities": original_entities,
             "normalized_entities": normalized_entities,
             "icd_codes": entities_with_icd_codes,
-            "cached": False
+            "cached": False,
         }
-

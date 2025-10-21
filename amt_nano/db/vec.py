@@ -1,19 +1,28 @@
 """
-Vector database for RAG (retrieval‑augmented generation) with SurrealDB.
+Vector database for RAG (retrieval-augmented generation) with SurrealDB.
 """
+
 import json
 from typing import Any, Dict, List, Optional, cast
 
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam
+
 # Import surrealdb with type ignore since it lacks proper stubs
 from surrealdb import AsyncSurreal  # type: ignore[import-untyped]
 
-from settings import (SURREALDB_DATABASE, SURREALDB_HOST, SURREALDB_NAMESPACE,
-                      SURREALDB_PASS, SURREALDB_PORT, SURREALDB_PROTOCOL,
-                      SURREALDB_USER, logger)
+from settings import (
+    SURREALDB_DATABASE,
+    SURREALDB_HOST,
+    SURREALDB_NAMESPACE,
+    SURREALDB_PASS,
+    SURREALDB_PORT,
+    SURREALDB_PROTOCOL,
+    SURREALDB_USER,
+    logger,
+)
 
-DB_URL  = f"{SURREALDB_PROTOCOL}://{SURREALDB_HOST}:{SURREALDB_PORT}/rpc"
+DB_URL = f"{SURREALDB_PROTOCOL}://{SURREALDB_HOST}:{SURREALDB_PORT}/rpc"
 
 knowledge_hsnw = """
 -- Switch to your namespace / database
@@ -22,19 +31,18 @@ USE ns {ns} DB {db};
 -- Table for each passage / triple
 DEFINE TABLE knowledge
   PERMISSIONS NONE
-  SCHEMAFULL;            -- optional but nice: enforces field types
+  SCHEMAFULL;
 
 -- Add fields
 DEFINE FIELD text       ON knowledge TYPE string;
-DEFINE FIELD embedding  ON knowledge TYPE array;   -- OpenAI returns 1536‑floats arrays
+DEFINE FIELD embedding  ON knowledge TYPE array;   -- OpenAI returns 1536-floats arrays
 
--- Create a 1536‑dim HNSW vector index for cosine similarity
+-- Create a 1536-dim HNSW vector index for cosine similarity
 DEFINE INDEX idx_knn ON knowledge
   FIELDS embedding
   HNSW DIMENSION 1536 DIST COSINE;
 """.format(
-    ns=SURREALDB_NAMESPACE,
-    db=SURREALDB_DATABASE
+    ns=SURREALDB_NAMESPACE, db=SURREALDB_DATABASE
 )
 
 knowledge_hsnw_v2 = """
@@ -44,24 +52,23 @@ USE ns {ns} DB {db};
 -- Table for each passage / triple
 DEFINE TABLE knowledge
   PERMISSIONS NONE
-  SCHEMAFULL;            -- optional but nice: enforces field types
+  SCHEMAFULL;
 
--- ONE‑TIME migration -------------------------------------------
+-- ONE-TIME migration -------------------------------------------
 REMOVE FIELD embedding ON knowledge;           -- if the field exists
 REMOVE INDEX idx_knn ON knowledge;             -- if the index exists
 
--- Re‑define field as an array of 64‑bit floats, dimension 1536
+-- Re-define field as an array of 64-bit floats, dimension 1536
 DEFINE FIELD embedding ON knowledge
   TYPE array<float>
   ASSERT array::len($value) = 1536;
 
--- Re‑create the same HNSW index
+-- Re-create the same HNSW index
 DEFINE INDEX idx_knn ON knowledge
   FIELDS embedding
   HNSW DIMENSION 1536 DIST COSINE TYPE F64;
 """.format(
-    ns=SURREALDB_NAMESPACE,
-    db=SURREALDB_DATABASE
+    ns=SURREALDB_NAMESPACE, db=SURREALDB_DATABASE
 )
 
 DEFAULT_SYSTEM_PROMPT = """
@@ -86,7 +93,9 @@ class BatchItem:
         :return: None
         """
         if not id or not text:
-            raise ValueError("Both 'id' and 'text' must be provided and cannot be empty.")
+            raise ValueError(
+                "Both 'id' and 'text' must be provided and cannot be empty."
+            )
         self.id = id
         self.text = text
 
@@ -110,7 +119,7 @@ class BatchList:
 
 class Vec:
     """
-    Vector database for RAG (retrieval‑augmented generation) with SurrealDB.
+    Vector database for RAG (retrieval-augmented generation) with SurrealDB.
 
     Example usage:
     ```python
@@ -122,12 +131,12 @@ class Vec:
     """
 
     def __init__(
-            self,
-            openai_client: Optional[AsyncOpenAI] = None,
-            db_url: str = DB_URL,
-            system_prompt: str = DEFAULT_SYSTEM_PROMPT,
-            embed_model: str = "text-embedding-3-small",
-            inference_model: str = "gpt-4.1-nano"
+        self,
+        openai_client: Optional[AsyncOpenAI] = None,
+        db_url: str = DB_URL,
+        system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+        embed_model: str = "text-embedding-3-small",
+        inference_model: str = "gpt-4.1-nano",
     ) -> None:
         """
         Initialize the Vec instance.
@@ -137,7 +146,7 @@ class Vec:
         :param embed_model: The OpenAI model to use for embeddings (default: "text-embedding-3-small").
         :param inference_model: The OpenAI model to use for inference (default: "gpt-4.1-nano").
         """
-        self.client = openai_client
+        self.client: Optional[AsyncOpenAI] = openai_client
         self.system_prompt = system_prompt
         self.db_url = db_url
         self.embed_model = embed_model
@@ -165,7 +174,9 @@ class Vec:
             raise
         try:
             if SURREALDB_NAMESPACE is None or SURREALDB_DATABASE is None:
-                raise ValueError("SURREALDB_NAMESPACE and SURREALDB_DATABASE must not be None.")
+                raise ValueError(
+                    "SURREALDB_NAMESPACE and SURREALDB_DATABASE must not be None."
+                )
             await db.use(SURREALDB_NAMESPACE, SURREALDB_DATABASE)  # type: ignore[no-untyped-call]
         except Exception as e:
             logger.error(f"[ERROR] Failed to use namespace/database: {e}")
@@ -181,7 +192,7 @@ class Vec:
             logger.error(f"[ERROR] Failed to close SurrealDB connection: {e}")
             raise
 
-    async def seed(self, data_source: str, data_type: str = 'json') -> None:
+    async def seed(self, data_source: str, data_type: str = "json") -> None:
         """
         Seed the vector database with knowledge data.
         :param data_source: Path to the data source file (JSON or JSONL).
@@ -192,22 +203,30 @@ class Vec:
         await db.connect()  # type: ignore[no-untyped-call]
         await db.signin({"username": SURREALDB_USER, "password": SURREALDB_PASS})  # type: ignore[no-untyped-call]
         if SURREALDB_NAMESPACE is None or SURREALDB_DATABASE is None:
-                raise ValueError("SURREALDB_NAMESPACE and SURREALDB_DATABASE must not be None.")
+            raise ValueError(
+                "SURREALDB_NAMESPACE and SURREALDB_DATABASE must not be None."
+            )
         await db.use(SURREALDB_NAMESPACE, SURREALDB_DATABASE)  # type: ignore[no-untyped-call]
 
         res = await db.query("INFO FOR DB;")  # type: ignore[no-untyped-call]
-        logger.debug("Database info:", res)
+        logger.debug(f"Database info: {res}")
 
         res = await db.query("INFO FOR TABLE knowledge;")  # type: ignore[no-untyped-call]
-        logger.debug("Table info:", res)
+        logger.debug(f"Table info: {res}")
 
-        if data_type == 'jsonl':
-            docs: List[Dict[str, Any]] = [json.loads(l) for l in open(data_source, "r", encoding="utf-8") if l.strip()]
-        elif data_type == 'json':
+        if data_type == "jsonl":
+            docs: List[Dict[str, Any]] = [
+                json.loads(new_line)
+                for new_line in open(data_source, "r", encoding="utf-8")
+                if new_line.strip()
+            ]
+        elif data_type == "json":
             with open(data_source, "r", encoding="utf-8") as f:
                 docs = json.load(f)
         else:
-            raise ValueError(f"Unsupported data type: {data_type}. Supported types are 'jsonl' and 'json'.")
+            raise ValueError(
+                f"Unsupported data type: {data_type}. Supported types are 'jsonl' and 'json'."
+            )
 
         chunk = 96
         batch: List[Dict[str, Any]] = []
@@ -217,7 +236,9 @@ class Vec:
             batch.append(doc)
             if len(batch) == chunk:
                 logger.debug(f"[SEED] Inserting {len(batch)} records...")
-                batch_data = [{"id": str(d["id"]), "text": str(d["text"])} for d in batch]
+                batch_data = [
+                    {"id": str(d["id"]), "text": str(d["text"])} for d in batch
+                ]
                 batch_list = BatchList([BatchItem(**d) for d in batch_data])
                 await self.insert(batch_list, db)
                 logger.debug("[SEED] Insert complete.")
@@ -230,7 +251,7 @@ class Vec:
             logger.debug("[SEED] Insert complete.")
 
         res = await db.query("SELECT id, text FROM knowledge LIMIT 5;")  # type: ignore[no-untyped-call]
-        logger.debug("Sample records:", res)
+        logger.debug(f"Sample records: {res}")
 
     async def insert(self, batch: BatchList, db: Any) -> None:
         """
@@ -240,7 +261,9 @@ class Vec:
         :return: None
         """
         if not self.client:
-            raise ValueError("This function requires an OpenAI client to be initialized.")
+            raise ValueError(
+                "This function requires an OpenAI client to be initialized."
+            )
 
         if not batch.data:
             logger.warning("Batch is empty. Nothing to insert.")
@@ -249,11 +272,13 @@ class Vec:
         logger.debug(f"[DEBUG] Inserting {len(batch.data)} records into SurrealDB...")
 
         # Prepare the batch for OpenAI embedding
-        batch_dicts = [item.__dict__ for item in batch.data] # Convert BatchItem to dict
+        batch_dicts = [
+            item.__dict__ for item in batch.data
+        ]  # Convert BatchItem to dict
 
-        texts  = [d["text"] for d in batch_dicts]
+        texts = [d["text"] for d in batch_dicts]
         resp = await self.client.embeddings.create(model=self.embed_model, input=texts)
-        embeds = [e.embedding for e in resp.data]
+        embeds: List[List[float]] = [e.embedding for e in resp.data]
 
         inserted = 0
         for i, (b, e) in enumerate(zip(batch_dicts, embeds)):
@@ -296,23 +321,30 @@ class Vec:
         :return: List of context strings or None if an error occurs.
         """
         if not self.client:
-            raise ValueError("This function requires an OpenAI client to be initialized.")
-        qvec = (await self.client.embeddings.create(model=self.embed_model, input=[question])).data[0].embedding
-        db   = AsyncSurreal(DB_URL)  # type: ignore[no-untyped-call]
+            raise ValueError(
+                "This function requires an OpenAI client to be initialized."
+            )
+        resp = await self.client.embeddings.create(
+            model=self.embed_model, input=[question]
+        )
+        qvec: List[float] = resp.data[0].embedding
+        db = AsyncSurreal(DB_URL)  # type: ignore[no-untyped-call]
         await db.connect()  # type: ignore[no-untyped-call]
         await db.signin({"username": SURREALDB_USER, "password": SURREALDB_PASS})  # type: ignore[no-untyped-call]
         if SURREALDB_NAMESPACE is None or SURREALDB_DATABASE is None:
-            raise ValueError("SURREALDB_NAMESPACE and SURREALDB_DATABASE must not be None.")
+            raise ValueError(
+                "SURREALDB_NAMESPACE and SURREALDB_DATABASE must not be None."
+            )
         await db.use(SURREALDB_NAMESPACE, SURREALDB_DATABASE)  # type: ignore[no-untyped-call]
 
-        # SurrealQL k‑NN syntax: <k, COSINE|> $vector
+        # SurrealQL k-NN syntax: <k, COSINE|> $vector
         q = f"SELECT text FROM knowledge WHERE embedding <|{k}, COSINE|> $vec;"
 
         try:
             res = await db.query(q, {"vec": qvec})  # type: ignore[no-untyped-call]
-            logger.debug('[DEBUG] Raw SurrealDB result:', json.dumps(res, indent=2))
+            logger.debug(f"[DEBUG] Raw SurrealDB result: {json.dumps(res, indent=2)}")
         except Exception as e:
-            logger.error('[ERROR] Exception while querying SurrealDB:', e)
+            logger.error(f"[ERROR] Exception while querying SurrealDB: {e}")
             return None
         finally:
             await db.close()  # type: ignore[no-untyped-call]
@@ -334,7 +366,9 @@ class Vec:
         :return: str: The model's response to the question.
         """
         if not self.client:
-            raise ValueError("This function requires an OpenAI client to be initialized.")
+            raise ValueError(
+                "This function requires an OpenAI client to be initialized."
+            )
         context = await self.get_context(question, k=4)
 
         if not context:
@@ -343,19 +377,31 @@ class Vec:
         # Convert messages to proper ChatCompletionMessageParam format
         def to_message_param(role: str, content: str) -> ChatCompletionMessageParam:
             if role == "system":
-                return cast(ChatCompletionMessageParam, {"role": "system", "content": content})
+                return cast(
+                    ChatCompletionMessageParam, {"role": "system", "content": content}
+                )
             elif role == "user":
-                return cast(ChatCompletionMessageParam, {"role": "user", "content": content})
+                return cast(
+                    ChatCompletionMessageParam, {"role": "user", "content": content}
+                )
             else:
                 raise ValueError(f"Unknown role: {role}")
 
         messages = [
             to_message_param("system", self.system_prompt),
-            to_message_param("system", "Context:\n" + "\n".join(f"- {c}" for c in context)),
+            to_message_param(
+                "system", "Context:\n" + "\n".join(f"- {c}" for c in context)
+            ),
             to_message_param("user", question),
         ]
-        
-        answer = (await self.client.chat.completions.create(
-            model=self.model, messages=messages, max_tokens=max_tokens
-        )).choices[0].message.content
+
+        answer = (
+            (
+                await self.client.chat.completions.create(
+                    model=self.model, messages=messages, max_tokens=max_tokens
+                )
+            )
+            .choices[0]
+            .message.content
+        )
         return answer if answer is not None else ""

@@ -1,6 +1,7 @@
 """
 APIs for fetching medical data from various sources like Medline, ClinicalTrials, and NCBI.
 """
+
 import time
 from typing import Any, Dict, List, Tuple
 
@@ -10,10 +11,11 @@ from lib.logger import Logger
 from settings import logger
 
 icd10_codes = {
-    'asthma': 'J45.40',
-    'diabetes (type 2)': 'E11.9',
+    "asthma": "J45.40",
+    "diabetes (type 2)": "E11.9",
 }
 # https://connect.medlineplus.gov/service?knowledgeResponseType=application%2Fjson&mainSearchCriteria.v.cs=2.16.840.1.113883.6.90&mainSearchCriteria.v.c={icd10_code}&mainSearchCriteria.v.dn=&informationRecipient.languageCode.c=en
+
 
 class ICD10Code(str):
     """
@@ -22,19 +24,23 @@ class ICD10Code(str):
 
     Format: `ICD10:{icd10_code}`
     """
+
     def validate(self) -> bool:
         """
         Validates the ICD-10 code format.
         :return: True if valid, False otherwise.
         """
         # Simple validation for ICD-10 code format
-        return bool(self and len(self) >= 3 and self[0].isalpha() and self[1:].isdigit())
+        return bool(
+            self and len(self) >= 3 and self[0].isalpha() and self[1:].isdigit()
+        )
 
 
 class Medline:
     """
     Fetches medical information from Medline using ICD-10 codes.
     """
+
     def __init__(self, logger: Logger) -> None:
         """
         Initializes the Medline class with a logger.
@@ -62,23 +68,23 @@ class Medline:
             return {"error": "Invalid ICD-10 code format"}
 
         url = f"https://connect.medlineplus.gov/service?knowledgeResponseType=application%2Fjson&mainSearchCriteria.v.cs=2.16.840.1.113883.6.90&mainSearchCriteria.v.c={icd10_code}&mainSearchCriteria.v.dn=&informationRecipient.languageCode.c=en"
-        headers = {
-            "accept": "application/json"
-        }
+        headers = {"accept": "application/json"}
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
             data = response.json()
             return data
         else:
-            self.logger.error(f"Error fetching Medline data: {response.status_code} - {response.text}")
+            self.logger.error(
+                f"Error fetching Medline data: {response.status_code} - {response.text}"
+            )
             return {"error": "Failed to fetch Medline data"}
-
 
 
 class ClinicalTrials:
     """
     Fetches clinical trial data from ClinicalTrials.gov.
     """
+
     def __init__(self, logger: Logger) -> None:
         """
         Initializes the ClinicalTrials class with a logger.
@@ -97,27 +103,22 @@ class ClinicalTrials:
         :return: A dictionary containing the clinical trial data or an error message.
         """
         import requests
+
         url = "https://clinicaltrials.gov/api/v2/studies"
 
-        headers = {
-            "accept": "application/json"
-        }
+        headers = {"accept": "application/json"}
 
-        data = {
-            "query.cond": query
-        }
+        data = {"query.cond": query}
 
-        response = requests.get(
-            url,
-            params=data,
-            headers=headers
-        )
+        response = requests.get(url, params=data, headers=headers)
 
         if response.status_code == 200:
             data = response.json()
             return data
         else:
-            self.logger.error(f"Error fetching clinical trials: {response.status_code} - {response.text}")
+            self.logger.error(
+                f"Error fetching clinical trials: {response.status_code} - {response.text}"
+            )
             return {"error": "Failed to fetch clinical trials"}
 
 
@@ -126,6 +127,7 @@ class NCBI:
     Fetches medical studies and articles from NCBI's PubMed database.
     Uses the Entrez API to search for articles based on a query.
     """
+
     def __init__(self, email: str, logger: Logger, api_key: str) -> None:
         """
         Initializes the NCBI class with email, logger, and API key.
@@ -144,7 +146,9 @@ class NCBI:
             "User-Agent": f"arsmedicatech/0.1 ({self.email})"
         }
 
-    def fetch_ncbi_studies(self, query: str, debug: bool = False) -> List[Dict[str, Any]]:
+    def fetch_ncbi_studies(
+        self, query: str, debug: bool = False
+    ) -> List[Dict[str, Any]]:
         """
         Fetches studies from NCBI's PubMed database based on the provided query.
         :param query: The search query for PubMed articles.
@@ -153,15 +157,23 @@ class NCBI:
         """
         hits: List[Dict[str, Any]] = []
         total_found: int
-        hits, total_found = self.search_pubmed(query, max_records=10, with_abstract=True)
+        hits, total_found = self.search_pubmed(
+            query, max_records=10, with_abstract=True
+        )
         if debug:
-            logger.debug(f"{total_found:,} articles in PubMed; showing {len(hits)} results:\n")
+            logger.debug(
+                f"{total_found:,} articles in PubMed; showing {len(hits)} results:\n"
+            )
             for i, art in enumerate(hits, 1):
-                logger.debug(f"{i}. {art['title']}  ({art['journal']}, {art['pubdate']})")
+                logger.debug(
+                    f"{i}. {art['title']}  ({art['journal']}, {art['pubdate']})"
+                )
                 logger.debug(f"   PMID: {art['pmid']}")
                 logger.debug(f"   Authors: {art['authors']}")
-                if 'abstract' in art:
-                    logger.debug(f"   Abstract (truncated): {art['abstract'][:300]}...\n")
+                if "abstract" in art:
+                    logger.debug(
+                        f"   Abstract (truncated): {art['abstract'][:300]}...\n"
+                    )
         return hits
 
     def esearch(self, query: str, retmax: int = 100) -> Tuple[List[str], int]:
@@ -181,9 +193,11 @@ class NCBI:
             "sort": "relevance",
             "api_key": self.api_key,
             "tool": "clinical-search",
-            "email": self.email
+            "email": self.email,
         }
-        r = requests.get(self.BASE + "esearch.fcgi", params=params, headers=self.HEADERS, timeout=15)
+        r = requests.get(
+            self.BASE + "esearch.fcgi", params=params, headers=self.HEADERS, timeout=15
+        )
         r.raise_for_status()
         data = r.json()["esearchresult"]
         return data["idlist"], int(data["count"])  # (list of PMIDs, total hits)
@@ -204,9 +218,11 @@ class NCBI:
             "retmode": "json",
             "api_key": self.api_key,
             "tool": "clinical-search",
-            "email": self.email
+            "email": self.email,
         }
-        r = requests.get(self.BASE + "esummary.fcgi", params=params, headers=self.HEADERS, timeout=15)
+        r = requests.get(
+            self.BASE + "esummary.fcgi", params=params, headers=self.HEADERS, timeout=15
+        )
         r.raise_for_status()
         summaries = r.json()["result"]
         # The JSON has a useless 'uids' list; filter it out
@@ -227,13 +243,21 @@ class NCBI:
             "retmode": "text",
             "api_key": self.api_key,
             "tool": "clinical-search",
-            "email": self.email
+            "email": self.email,
         }
-        r = requests.get(self.BASE + "efetch.fcgi", params=params, headers=self.HEADERS, timeout=15)
+        r = requests.get(
+            self.BASE + "efetch.fcgi", params=params, headers=self.HEADERS, timeout=15
+        )
         r.raise_for_status()
         return r.text.strip()
 
-    def search_pubmed(self, query: str, max_records: int = 20, with_abstract: bool = False, delay: float = 0.35) -> tuple[List[Dict[str, Any]], int]:
+    def search_pubmed(
+        self,
+        query: str,
+        max_records: int = 20,
+        with_abstract: bool = False,
+        delay: float = 0.35,
+    ) -> tuple[List[Dict[str, Any]], int]:
         """
         High-level helper.
         Returns a list of dicts: [{pmid, title, journal, authors, pubdate, abstract?}, ...]

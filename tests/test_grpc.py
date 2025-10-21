@@ -5,9 +5,9 @@ import datetime
 # Pre-load the dependencies into the protobuf registry.
 import google.protobuf.any_pb2  # noqa
 import google.protobuf.timestamp_pb2  # noqa
+from arsmedicatech.fhir_sync_pb2 import Patient
 
 from amt_nano.services.grpc_service import PatientController
-from arsmedicatech.fhir_sync_pb2 import Patient
 from settings import GRPC_URL
 
 controller = PatientController(address=GRPC_URL, secure=True)

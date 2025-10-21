@@ -26,9 +26,9 @@ def store_entity_cache(
     """
     try:
         # Remove position data for storage (keep only the essential entity info)
-        entities_for_storage = []
+        entities_for_storage: List[Dict[str, Any]] = []
         for entity in entities:
-            entity_copy = {
+            entity_copy: Dict[str, Any] = {
                 "text": entity.get("text", ""),
                 "label": entity.get("label", ""),
                 "cui": entity.get("cui"),
@@ -37,11 +37,11 @@ def store_entity_cache(
             }
             entities_for_storage.append(entity_copy)
 
-        cache_data = {
+        cache_data: Dict[str, Any] = {
             "text_hash": text_hash,
             "entities": entities_for_storage,
             "note_type": note_type,
-            "created_at": datetime.datetime.utcnow().isoformat(),
+            "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "entity_count": len(entities_for_storage),
         }
 
@@ -50,7 +50,7 @@ def store_entity_cache(
             "CREATE entity_cache CONTENT $cache_data", {"cache_data": cache_data}
         )
 
-        logger.debug(f"Stored entity cache for hash: {text_hash}")
+        logger.debug(f"Stored entity cache: {result} for hash: {text_hash}")
         return True
 
     except Exception as e:
@@ -73,16 +73,14 @@ def get_entity_cache(
         return None
     try:
         result = db.query(
-            "SELECT * FROM entity_cache WHERE text_hash = $text_hash LIMIT 1",
+            "SELECT * FROM ONLY entity_cache WHERE text_hash = $text_hash",
             {"text_hash": text_hash},
         )
 
-        if result and len(result) > 0 and result[0].get("result"):
-            cache_data = result[0]["result"][0]
-            logger.debug(f"Retrieved entity cache for hash: {text_hash}")
-            return cache_data
-
-        return None
+        if isinstance(result, str) or isinstance(result, List):
+            raise RuntimeError(f"Unexpected result from return: {result}")
+        logger.debug(f"Retrieved entity cache for hash: {text_hash}")
+        return result
 
     except Exception as e:
         logger.error(f"Error retrieving entity cache: {e}")
@@ -165,17 +163,19 @@ class EntityCacheService:
 
             # Build query based on whether entity_type is provided
             if entity_type:
-                query = "SELECT * FROM entity_cache WHERE entity_hash = $entity_hash AND entity_type = $entity_type LIMIT 1"
+                query = "SELECT * FROM ONLY entity_cache WHERE entity_hash = $entity_hash AND entity_type = $entity_type"
                 result = db.query(
                     query, {"entity_hash": entity_hash, "entity_type": entity_type}
                 )
             else:
-                query = "SELECT * FROM entity_cache WHERE entity_hash = $entity_hash LIMIT 1"
+                query = (
+                    "SELECT * FROM ONLY entity_cache WHERE entity_hash = $entity_hash"
+                )
                 result = db.query(query, {"entity_hash": entity_hash})
 
-            if result and len(result) > 0 and result[0].get("result"):
-                return result[0]["result"][0]
-            return None
+            if isinstance(result, str) or isinstance(result, List):
+                raise RuntimeError(f"Unexpected result from return: {result}")
+            return result
 
         except Exception as e:
             logger.error(f"Error getting cached entity: {e}")
@@ -221,6 +221,7 @@ class EntityCacheService:
 
             # Store in database
             result = db.create("entity_cache", cache_data)
+            logger.debug(f"store entity result: {result}")
             return bool(result)
 
         except Exception as e:
@@ -303,10 +304,13 @@ class EntityCacheService:
             )
         try:
             # Get total count
-            result = db.query("SELECT count() as total FROM entity_cache")
+            result = db.query(
+                "SELECT count() as total only FROM entity_cache group by total"
+            )
             total_count = 0
-            if result and len(result) > 0 and result[0].get("result"):
-                total_count = result[0]["result"][0].get("total", 0)
+            if isinstance(result, str) or isinstance(result, List):
+                raise RuntimeError(f"Something went wrong with the count: {result}")
+            total_count = result["total"]
 
             # Get count by type (if entity_type field exists)
             type_stats = {}
@@ -314,12 +318,8 @@ class EntityCacheService:
                 type_result = db.query(
                     "SELECT entity_type, count() as count FROM entity_cache GROUP BY entity_type"
                 )
-                if (
-                    type_result
-                    and len(type_result) > 0
-                    and type_result[0].get("result")
-                ):
-                    for item in type_result[0]["result"]:
+                if isinstance(type_result, List) and len(type_result) > 0:
+                    for item in type_result:
                         entity_type = item.get("entity_type", "unknown")
                         count = item.get("count", 0)
                         type_stats[entity_type] = count

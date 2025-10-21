@@ -51,7 +51,7 @@
     "configFile": "./config/.eslintrc.js",
     "ignorePath": "./config/.eslintignore"
   },
-  "python.analysis.typeCheckingMode": "strict",
+  "python.analysis.typeCheckingMode": "standard",
   "python.linting.enabled": true,
   "python.linting.mypyEnabled": true,
   "python.linting.mypyArgs": ["--config-file", "./mypy.ini"],

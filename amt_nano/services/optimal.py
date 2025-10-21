@@ -3,6 +3,7 @@ Optimal Service Module
 
 Optimal is an API for solving optimization problems using various solvers.
 """
+
 from typing import Any, Dict, List
 
 from settings import logger
@@ -12,6 +13,7 @@ class OptimalMetadata:
     """
     Metadata for the optimization problem.
     """
+
     def __init__(self, problem_id: str, solver: str, sense: str) -> None:
         """
         Initializes the metadata for the optimization problem.
@@ -31,7 +33,7 @@ class OptimalMetadata:
         return {
             "problem_id": self.problem_id,
             "solver": self.solver,
-            "sense": self.sense
+            "sense": self.sense,
         }
 
 
@@ -39,15 +41,16 @@ class OptimalSchema:
     """
     Schema for the optimization problem to be sent to the Optimal service.
     """
+
     def __init__(
-            self,
-            meta: OptimalMetadata,
-            variables: List[dict[str, str | int]],
-            parameters: Dict[str, Any],
-            objective: Dict[str, Any],
-            constraints: List[Dict[str, Any]],
-            initial_guess: List[float]
-        ) -> None:
+        self,
+        meta: OptimalMetadata,
+        variables: List[dict[str, str | int]],
+        parameters: Dict[str, Any],
+        objective: Dict[str, Any],
+        constraints: List[Dict[str, Any]],
+        initial_guess: List[float],
+    ) -> None:
         """
         Initializes the schema for the optimization problem.
         :param meta: OptimalMetadata: Metadata for the optimization problem.
@@ -76,13 +79,15 @@ class OptimalSchema:
             "parameters": self.parameters,
             "objective": self.objective,
             "constraints": self.constraints,
-            "initial_guess": self.initial_guess
+            "initial_guess": self.initial_guess,
         }
+
 
 class OptimalService:
     """
     Service for interacting with the Optimal API to solve optimization problems.
     """
+
     def __init__(self, url: str, api_key: str, schema: OptimalSchema) -> None:
         """
         Initializes the OptimalService with the required parameters.
@@ -113,9 +118,7 @@ class OptimalService:
         if not self.api_key:
             raise ValueError("API key is required for OptimalService")
 
-        return {
-            'x-api-key': self.api_key
-        }
+        return {"x-api-key": self.api_key}
 
     def send(self) -> Dict[str, Any]:
         """
@@ -128,7 +131,7 @@ class OptimalService:
             "https://optimal.apphosting.services/optimize",
             json=self.payload,
             headers=self.headers,
-            timeout=30
+            timeout=30,
         )
 
         logger.debug(f"Status code: {resp.status_code}, Response text: {resp.text}")

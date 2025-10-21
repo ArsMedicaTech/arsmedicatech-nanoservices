@@ -1,6 +1,7 @@
 """
 Cache service for managing entity extraction results.
 """
+
 import datetime
 from typing import Any, Dict, List, Optional, Union
 
@@ -8,8 +9,12 @@ from amt_nano.db.surreal import AsyncDbController, DbController
 from settings import logger
 
 
-def store_entity_cache(db: Union[DbController, AsyncDbController], text_hash: str, entities: List[Dict[str, Any]],
-                       note_type: str = 'text') -> bool:
+def store_entity_cache(
+    db: Union[DbController, AsyncDbController],
+    text_hash: str,
+    entities: List[Dict[str, Any]],
+    note_type: str = "text",
+) -> bool:
     """
     Store entity extraction results in SurrealDB for caching.
 
@@ -21,32 +26,31 @@ def store_entity_cache(db: Union[DbController, AsyncDbController], text_hash: st
     """
     try:
         # Remove position data for storage (keep only the essential entity info)
-        entities_for_storage = []
+        entities_for_storage: List[Dict[str, Any]] = []
         for entity in entities:
-            entity_copy = {
+            entity_copy: Dict[str, Any] = {
                 "text": entity.get("text", ""),
                 "label": entity.get("label", ""),
                 "cui": entity.get("cui"),
                 "icd10cm": entity.get("icd10cm"),
-                "icd10cm_name": entity.get("icd10cm_name")
+                "icd10cm_name": entity.get("icd10cm_name"),
             }
             entities_for_storage.append(entity_copy)
 
-        cache_data = {
+        cache_data: Dict[str, Any] = {
             "text_hash": text_hash,
             "entities": entities_for_storage,
             "note_type": note_type,
-            "created_at": datetime.datetime.utcnow().isoformat(),
-            "entity_count": len(entities_for_storage)
+            "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "entity_count": len(entities_for_storage),
         }
 
         # Store in SurrealDB
         result = db.query(
-            "CREATE entity_cache CONTENT $cache_data",
-            {"cache_data": cache_data}
+            "CREATE entity_cache CONTENT $cache_data", {"cache_data": cache_data}
         )
 
-        logger.debug(f"Stored entity cache for hash: {text_hash}")
+        logger.debug(f"Stored entity cache: {result} for hash: {text_hash}")
         return True
 
     except Exception as e:
@@ -54,7 +58,9 @@ def store_entity_cache(db: Union[DbController, AsyncDbController], text_hash: st
         return False
 
 
-def get_entity_cache(db: Union[DbController, AsyncDbController], text_hash: str) -> Optional[Dict[str, Any]]:
+def get_entity_cache(
+    db: Union[DbController, AsyncDbController], text_hash: str
+) -> Optional[Dict[str, Any]]:
     """
     Retrieve entity extraction results from SurrealDB cache.
 
@@ -67,16 +73,14 @@ def get_entity_cache(db: Union[DbController, AsyncDbController], text_hash: str)
         return None
     try:
         result = db.query(
-            "SELECT * FROM entity_cache WHERE text_hash = $text_hash LIMIT 1",
-            {"text_hash": text_hash}
+            "SELECT * FROM ONLY entity_cache WHERE text_hash = $text_hash",
+            {"text_hash": text_hash},
         )
 
-        if result and len(result) > 0 and result[0].get("result"):
-            cache_data = result[0]["result"][0]
-            logger.debug(f"Retrieved entity cache for hash: {text_hash}")
-            return cache_data
-
-        return None
+        if isinstance(result, str) or isinstance(result, List):
+            raise RuntimeError(f"Unexpected result from return: {result}")
+        logger.debug(f"Retrieved entity cache for hash: {text_hash}")
+        return result
 
     except Exception as e:
         logger.error(f"Error retrieving entity cache: {e}")
@@ -91,31 +95,39 @@ def create_text_hash(text: str) -> str:
     :return: SHA256 hash string
     """
     import hashlib
-    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 class EntityCacheService:
     """
     Service for managing entity extraction cache.
     """
-    
+
     @staticmethod
-    def get_cached_entities(db: Union[DbController, AsyncDbController], text: str) -> Optional[Dict[str, Any]]:
+    def get_cached_entities(
+        db: Union[DbController, AsyncDbController], text: str
+    ) -> Optional[Dict[str, Any]]:
         """
         Get cached entities for a given text.
-        
+
         :param db: Database controller instance
         :param text: The text to look up in cache
         :return: Cached entity data if found, None otherwise
         """
         text_hash = create_text_hash(text)
         return get_entity_cache(db, text_hash)
-    
+
     @staticmethod
-    def store_entities(db: Union[DbController, AsyncDbController], text: str, entities: List[Dict[str, Any]], note_type: str = 'text') -> bool:
+    def store_entities(
+        db: Union[DbController, AsyncDbController],
+        text: str,
+        entities: List[Dict[str, Any]],
+        note_type: str = "text",
+    ) -> bool:
         """
         Store entities in cache for a given text.
-        
+
         :param db: Database controller instance
         :param text: The original text
         :param entities: List of entities to cache
@@ -124,12 +136,16 @@ class EntityCacheService:
         """
         text_hash = create_text_hash(text)
         return store_entity_cache(db, text_hash, entities, note_type)
-    
+
     @staticmethod
-    def get_cached_entity(db: Union[DbController, AsyncDbController], entity_text: str, entity_type: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def get_cached_entity(
+        db: Union[DbController, AsyncDbController],
+        entity_text: str,
+        entity_type: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
         """
         Get cached individual entity by text and type.
-        
+
         :param db: Database controller instance
         :param entity_text: The entity text to look up
         :param entity_type: The entity type (optional, for more specific lookup)
@@ -137,33 +153,44 @@ class EntityCacheService:
         """
         try:
             if isinstance(db, AsyncDbController):
-                logger.error("AsyncDbController not supported for individual entity cache")
+                logger.error(
+                    "AsyncDbController not supported for individual entity cache"
+                )
                 return None
-                
+
             # Create a hash for the entity text
             entity_hash = create_text_hash(entity_text.lower().strip())
-            
+
             # Build query based on whether entity_type is provided
             if entity_type:
-                query = "SELECT * FROM entity_cache WHERE entity_hash = $entity_hash AND entity_type = $entity_type LIMIT 1"
-                result = db.query(query, {"entity_hash": entity_hash, "entity_type": entity_type})
+                query = "SELECT * FROM ONLY entity_cache WHERE entity_hash = $entity_hash AND entity_type = $entity_type"
+                result = db.query(
+                    query, {"entity_hash": entity_hash, "entity_type": entity_type}
+                )
             else:
-                query = "SELECT * FROM entity_cache WHERE entity_hash = $entity_hash LIMIT 1"
+                query = (
+                    "SELECT * FROM ONLY entity_cache WHERE entity_hash = $entity_hash"
+                )
                 result = db.query(query, {"entity_hash": entity_hash})
-            
-            if result and len(result) > 0 and result[0].get("result"):
-                return result[0]["result"][0]
-            return None
-            
+
+            if isinstance(result, str) or isinstance(result, List):
+                raise RuntimeError(f"Unexpected result from return: {result}")
+            return result
+
         except Exception as e:
             logger.error(f"Error getting cached entity: {e}")
             return None
-    
+
     @staticmethod
-    def store_individual_entity(db: Union[DbController, AsyncDbController], entity_text: str, entity_data: Dict[str, Any], entity_type: Optional[str] = None) -> bool:
+    def store_individual_entity(
+        db: Union[DbController, AsyncDbController],
+        entity_text: str,
+        entity_data: Dict[str, Any],
+        entity_type: Optional[str] = None,
+    ) -> bool:
         """
         Store individual entity in cache.
-        
+
         :param db: Database controller instance
         :param entity_text: The entity text
         :param entity_data: The entity data to cache
@@ -172,37 +199,45 @@ class EntityCacheService:
         """
         try:
             if isinstance(db, AsyncDbController):
-                logger.error("AsyncDbController not supported for individual entity cache")
+                logger.error(
+                    "AsyncDbController not supported for individual entity cache"
+                )
                 return False
-                
+
             # Create a hash for the entity text
             entity_hash = create_text_hash(entity_text.lower().strip())
-            
+
             # Prepare the data to store
             cache_data: Dict[str, Any] = {
                 "entity_hash": entity_hash,
                 "entity_text": entity_text,
                 "entity_data": entity_data,
-                "cached_at": "now()"  # Use SurrealDB's now() function
+                "cached_at": "now()",  # Use SurrealDB's now() function
             }
-            
+
             # Add entity_type if provided
             if entity_type:
                 cache_data["entity_type"] = entity_type
-            
+
             # Store in database
             result = db.create("entity_cache", cache_data)
+            logger.debug(f"store entity result: {result}")
             return bool(result)
-            
+
         except Exception as e:
             logger.error(f"Error storing individual entity: {e}")
             return False
-    
+
     @staticmethod
-    def get_or_cache_entity(db: Union[DbController, AsyncDbController], entity_text: str, entity_data: Dict[str, Any], entity_type: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def get_or_cache_entity(
+        db: Union[DbController, AsyncDbController],
+        entity_text: str,
+        entity_data: Dict[str, Any],
+        entity_type: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
         """
         Get cached entity or store it if not found.
-        
+
         :param db: Database controller instance
         :param entity_text: The entity text
         :param entity_data: The entity data to cache if not found
@@ -210,80 +245,94 @@ class EntityCacheService:
         :return: Cached entity data
         """
         # Try to get from cache first
-        cached_entity = EntityCacheService.get_cached_entity(db, entity_text, entity_type)
+        cached_entity = EntityCacheService.get_cached_entity(
+            db, entity_text, entity_type
+        )
         if cached_entity:
             return cached_entity.get("entity_data")
-        
+
         # If not found, store it
-        if EntityCacheService.store_individual_entity(db, entity_text, entity_data, entity_type):
+        if EntityCacheService.store_individual_entity(
+            db, entity_text, entity_data, entity_type
+        ):
             return entity_data
-        
+
         return None
-    
+
     @staticmethod
     def is_cached(db: Union[DbController, AsyncDbController], text: str) -> bool:
         """
         Check if entities for a given text are cached.
-        
+
         :param db: Database controller instance
         :param text: The text to check
         :return: True if cached, False otherwise
         """
         return get_entity_cache(db, create_text_hash(text)) is not None
-    
+
     @staticmethod
-    def is_entity_cached(db: Union[DbController, AsyncDbController], entity_text: str, entity_type: Optional[str] = None) -> bool:
+    def is_entity_cached(
+        db: Union[DbController, AsyncDbController],
+        entity_text: str,
+        entity_type: Optional[str] = None,
+    ) -> bool:
         """
         Check if individual entity is cached.
-        
+
         :param db: Database controller instance
         :param entity_text: The entity text to check
         :param entity_type: The entity type (optional)
         :return: True if cached, False otherwise
         """
-        return EntityCacheService.get_cached_entity(db, entity_text, entity_type) is not None
-    
+        return (
+            EntityCacheService.get_cached_entity(db, entity_text, entity_type)
+            is not None
+        )
+
     @staticmethod
     def get_cache_stats(db: Union[DbController, AsyncDbController]) -> Dict[str, Any]:
         """
         Get cache statistics.
-        
+
         :param db: Database controller instance
         :return: Dictionary with cache statistics
         """
         if isinstance(db, AsyncDbController):
             logger.error("AsyncDbController not supported for get_entity_cache")
-            raise NotImplementedError("AsyncDbController not supported for get_entity_cache")
+            raise NotImplementedError(
+                "AsyncDbController not supported for get_entity_cache"
+            )
         try:
             # Get total count
-            result = db.query("SELECT count() as total FROM entity_cache")
+            result = db.query(
+                "SELECT count() as total only FROM entity_cache group by total"
+            )
             total_count = 0
-            if result and len(result) > 0 and result[0].get("result"):
-                total_count = result[0]["result"][0].get("total", 0)
-            
+            if isinstance(result, str) or isinstance(result, List):
+                raise RuntimeError(f"Something went wrong with the count: {result}")
+            total_count = result["total"]
+
             # Get count by type (if entity_type field exists)
             type_stats = {}
             try:
-                type_result = db.query("SELECT entity_type, count() as count FROM entity_cache GROUP BY entity_type")
-                if type_result and len(type_result) > 0 and type_result[0].get("result"):
-                    for item in type_result[0]["result"]:
+                type_result = db.query(
+                    "SELECT entity_type, count() as count FROM entity_cache GROUP BY entity_type"
+                )
+                if isinstance(type_result, List) and len(type_result) > 0:
+                    for item in type_result:
                         entity_type = item.get("entity_type", "unknown")
                         count = item.get("count", 0)
                         type_stats[entity_type] = count
             except Exception:
                 # entity_type field might not exist in older cache entries
                 pass
-            
+
             return {
                 "total_cached_entities": total_count,
                 "cache_enabled": True,
-                "by_type": type_stats
+                "by_type": type_stats,
             }
         except Exception as e:
             logger.error(f"Error getting cache stats: {e}")
-        
-        return {
-            "total_cached_entities": 0,
-            "cache_enabled": False,
-            "by_type": {}
-        }
+
+        return {"total_cached_entities": 0, "cache_enabled": False, "by_type": {}}

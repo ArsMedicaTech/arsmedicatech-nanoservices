@@ -1,11 +1,13 @@
 """
 Notifications Service
 """
+
 import json
 from typing import Any
 
-from lib.data_types import EventData, UserID
-from lib.services.redis_client import get_redis_connection
+from amt_nano.data_types import EventData, UserID
+
+from amt_nano.services.redis_client import get_redis_connection
 
 
 def publish_event(user_id: UserID, event_data: EventData) -> None:
@@ -20,6 +22,7 @@ def publish_event(user_id: UserID, event_data: EventData) -> None:
     message: str = json.dumps(event_data)
     redis.publish(channel, message)
 
+
 def store_event(user_id: UserID, event_data: EventData) -> None:
     """
     Store an event in Redis for a specific user.
@@ -31,6 +34,7 @@ def store_event(user_id: UserID, event_data: EventData) -> None:
     key = f"user:{user_id}:events"
     redis.rpush(key, json.dumps(event_data))
     redis.expire(key, 60 * 60)  # Keep messages for 1 hour
+
 
 def publish_event_with_buffer(user_id: UserID, event_data: EventData) -> None:
     """

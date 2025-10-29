@@ -310,7 +310,7 @@ class EntityCacheService:
             total_count = 0
             if isinstance(result, str) or isinstance(result, List):
                 raise RuntimeError(f"Something went wrong with the count: {result}")
-            total_count = result["total"]
+            total_count = result["total"] if result and result["total"] else 0
 
             # Get count by type (if entity_type field exists)
             type_stats = {}

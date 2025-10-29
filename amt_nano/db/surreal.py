@@ -64,7 +64,7 @@ class SurrealWrapper:
 
     def update(
         self, thing: Union[str, RecordID, Table], data: Dict[str, Any]
-    ) -> Union[str, Dict[str, Any], List[Dict[str, Any]]]:
+    ) -> Union[str, Dict[str, Any], List[Dict[str, Any]], None]:
         """
         Update a record in the database.
 
@@ -126,7 +126,7 @@ class AsyncSurrealWrapper:
 
     async def update(
         self, thing: Union[str, RecordID, Table], data: Dict[str, Any]
-    ) -> Union[str, Dict[str, Any], List[Dict[str, Any]]]:
+    ) -> Union[str, Dict[str, Any], List[Dict[str, Any]], None]:
         return await self._client.update(thing, data)
 
     async def use(self, namespace: str, database: str) -> None:
@@ -258,11 +258,7 @@ class DbController:
             raise RuntimeError(
                 "Database connection is not established. Call connect() before performing operations."
             )
-        try:
-            return self.db.create(thing, data)
-        except Exception as e:
-            logger.error(f"Error creating record: {e}")
-            return {}
+        return self.db.create(thing, data)
 
     def delete(
         self, thing: Union[str, RecordID, Table]
@@ -318,7 +314,7 @@ class DbController:
 
     def update(
         self, thing: Union[str, RecordID, Table], data: Dict[str, Any]
-    ) -> Union[str, Dict[str, Any], List[Dict[str, Any]]]:
+    ) -> Union[str, Dict[str, Any], List[Dict[str, Any]], None]:
         """
         Update a record
 
@@ -327,21 +323,13 @@ class DbController:
         :return: Updated record
         """
         logger.debug(f"SurrealDB update thing: {thing}")
-        try:
-            if self.db is None:
-                raise RuntimeError(
-                    "Database connection is not established. Call connect() before performing operations."
-                )
-            result = self.db.update(thing, data)
-            logger.debug(f"SurrealDB update result: {result}")
-            return result
-
-        except Exception as e:
-            logger.error(f"Exception in update: {e}")
-            import traceback
-
-            traceback.print_exc()
-            return {}
+        if self.db is None:
+            raise RuntimeError(
+                "Database connection is not established. Call connect() before performing operations."
+            )
+        result = self.db.update(thing, data)
+        logger.debug(f"SurrealDB update result: {result}")
+        return result
 
     def search(
         self, query: str, params: Optional[Dict[str, Any]]
@@ -511,11 +499,7 @@ class AsyncDbController:
             raise RuntimeError(
                 "Database connection is not established. Call connect() before performing operations."
             )
-        try:
-            return await self.db.create(thing, data)
-        except Exception as e:
-            logger.error(f"Error creating record: {e}")
-            return {}
+        return await self.db.create(thing, data)
 
     async def delete(
         self, thing: Union[str, RecordID, Table]
@@ -571,7 +555,7 @@ class AsyncDbController:
 
     async def update(
         self, thing: Union[str, RecordID, Table], data: Dict[str, Any]
-    ) -> Union[str, Dict[str, Any], List[Dict[str, Any]]]:
+    ) -> Union[str, Dict[str, Any], List[Dict[str, Any]], None]:
         """
         Update a record
 
@@ -580,21 +564,13 @@ class AsyncDbController:
         :return: Updated record
         """
         logger.debug(f"SurrealDB update thing: {thing}")
-        try:
-            if self.db is None:
-                raise RuntimeError(
-                    "Database connection is not established. Call connect() before performing operations."
-                )
-            result = await self.db.update(thing, data)
-            logger.debug(f"SurrealDB update result: {result}")
-            return result
-
-        except Exception as e:
-            logger.error(f"Exception in update: {e}")
-            import traceback
-
-            traceback.print_exc()
-            return {}
+        if self.db is None:
+            raise RuntimeError(
+                "Database connection is not established. Call connect() before performing operations."
+            )
+        result = await self.db.update(thing, data)
+        logger.debug(f"SurrealDB update result: {result}")
+        return result
 
     async def close(self) -> None:
         """

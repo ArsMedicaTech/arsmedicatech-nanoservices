@@ -137,6 +137,10 @@ class Vec:
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
         embed_model: str = "text-embedding-3-small",
         inference_model: str = "gpt-4.1-nano",
+        surrealdb_namespace: Optional[str] = SURREALDB_NAMESPACE,
+        surrealdb_database: Optional[str] = SURREALDB_DATABASE,
+        surrealdb_user: Optional[str] = SURREALDB_USER,
+        surrealdb_pass: Optional[str] = SURREALDB_PASS,
     ) -> None:
         """
         Initialize the Vec instance.
@@ -145,12 +149,21 @@ class Vec:
         :param system_prompt: A system prompt to guide the model's responses.
         :param embed_model: The OpenAI model to use for embeddings (default: "text-embedding-3-small").
         :param inference_model: The OpenAI model to use for inference (default: "gpt-4.1-nano").
+        :param surrealdb_namespace: Namespace for SurrealDB.
+        :param surrealdb_database: Database name for SurrealDB.
+        :param surrealdb_user: Username for SurrealDB authentication.
+        :param surrealdb_pass: Password for SurrealDB authentication.
         """
         self.client: Optional[AsyncOpenAI] = openai_client
         self.system_prompt = system_prompt
         self.db_url = db_url
         self.embed_model = embed_model
         self.model = inference_model
+
+        self.surrealdb_namespace = surrealdb_namespace
+        self.surrealdb_database = surrealdb_database
+        self.surrealdb_user = surrealdb_user
+        self.surrealdb_pass = surrealdb_pass
 
     async def init(self) -> None:
         """
@@ -168,16 +181,12 @@ class Vec:
             logger.error(f"[ERROR] Failed to connect to SurrealDB: {e}")
             raise
         try:
-            await db.signin({"username": SURREALDB_USER, "password": SURREALDB_PASS})  # type: ignore[no-untyped-call]
+            await db.signin({"username": self.surrealdb_user, "password": self.surrealdb_pass})  # type: ignore[no-untyped-call]
         except Exception as e:
             logger.error(f"[ERROR] Failed to sign in to SurrealDB: {e}")
             raise
         try:
-            if SURREALDB_NAMESPACE is None or SURREALDB_DATABASE is None:
-                raise ValueError(
-                    "SURREALDB_NAMESPACE and SURREALDB_DATABASE must not be None."
-                )
-            await db.use(SURREALDB_NAMESPACE, SURREALDB_DATABASE)  # type: ignore[no-untyped-call]
+            await db.use(self.surrealdb_namespace, self.surrealdb_database)  # type: ignore[no-untyped-call]
         except Exception as e:
             logger.error(f"[ERROR] Failed to use namespace/database: {e}")
             raise
@@ -199,14 +208,10 @@ class Vec:
         :param data_type: Type of the data source file ('json' or 'jsonl').
         :return: None
         """
-        db = AsyncSurreal(DB_URL)  # type: ignore[no-untyped-call]
+        db = AsyncSurreal(self.db_url)  # type: ignore[no-untyped-call]
         await db.connect()  # type: ignore[no-untyped-call]
-        await db.signin({"username": SURREALDB_USER, "password": SURREALDB_PASS})  # type: ignore[no-untyped-call]
-        if SURREALDB_NAMESPACE is None or SURREALDB_DATABASE is None:
-            raise ValueError(
-                "SURREALDB_NAMESPACE and SURREALDB_DATABASE must not be None."
-            )
-        await db.use(SURREALDB_NAMESPACE, SURREALDB_DATABASE)  # type: ignore[no-untyped-call]
+        await db.signin({"username": self.surrealdb_user, "password": self.surrealdb_pass})  # type: ignore[no-untyped-call]
+        await db.use(self.surrealdb_namespace, self.surrealdb_database)  # type: ignore[no-untyped-call]
 
         res = await db.query("INFO FOR DB;")  # type: ignore[no-untyped-call]
         logger.debug(f"Database info: {res}")
@@ -331,14 +336,10 @@ class Vec:
             model=self.embed_model, input=[question]
         )
         qvec: List[float] = resp.data[0].embedding
-        db = AsyncSurreal(DB_URL)  # type: ignore[no-untyped-call]
+        db = AsyncSurreal(self.db_url)  # type: ignore[no-untyped-call]
         await db.connect()  # type: ignore[no-untyped-call]
-        await db.signin({"username": SURREALDB_USER, "password": SURREALDB_PASS})  # type: ignore[no-untyped-call]
-        if SURREALDB_NAMESPACE is None or SURREALDB_DATABASE is None:
-            raise ValueError(
-                "SURREALDB_NAMESPACE and SURREALDB_DATABASE must not be None."
-            )
-        await db.use(SURREALDB_NAMESPACE, SURREALDB_DATABASE)  # type: ignore[no-untyped-call]
+        await db.signin({"username": self.surrealdb_user, "password": self.surrealdb_pass})  # type: ignore[no-untyped-call]
+        await db.use(self.surrealdb_namespace, self.surrealdb_database)  # type: ignore[no-untyped-call]
 
         # SurrealQL k-NN syntax: <k, COSINE|> $vector
         q = f"SELECT text FROM {table_name} WHERE embedding <|{k}, COSINE|> $vec;"

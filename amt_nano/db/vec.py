@@ -29,47 +29,43 @@ knowledge_hsnw = """
 USE ns {ns} DB {db};
 
 -- Table for each passage / triple
-DEFINE TABLE knowledge
+DEFINE TABLE {table_name}
   PERMISSIONS NONE
   SCHEMAFULL;
 
 -- Add fields
-DEFINE FIELD text       ON knowledge TYPE string;
-DEFINE FIELD embedding  ON knowledge TYPE array;   -- OpenAI returns 1536-floats arrays
+DEFINE FIELD text       ON {table_name} TYPE string;
+DEFINE FIELD embedding  ON {table_name} TYPE array;   -- OpenAI returns 1536-floats arrays
 
 -- Create a 1536-dim HNSW vector index for cosine similarity
-DEFINE INDEX idx_knn ON knowledge
+DEFINE INDEX idx_knn ON {table_name}
   FIELDS embedding
   HNSW DIMENSION 1536 DIST COSINE;
-""".format(
-    ns=SURREALDB_NAMESPACE, db=SURREALDB_DATABASE
-)
+"""
 
 knowledge_hsnw_v2 = """
 -- Switch to your namespace / database
 USE ns {ns} DB {db};
 
 -- Table for each passage / triple
-DEFINE TABLE knowledge
+DEFINE TABLE {table_name}
   PERMISSIONS NONE
   SCHEMAFULL;
 
 -- ONE-TIME migration -------------------------------------------
-REMOVE FIELD embedding ON knowledge;           -- if the field exists
-REMOVE INDEX idx_knn ON knowledge;             -- if the index exists
+REMOVE FIELD embedding ON {table_name};           -- if the field exists
+REMOVE INDEX idx_knn ON {table_name};             -- if the index exists
 
 -- Re-define field as an array of 64-bit floats, dimension 1536
-DEFINE FIELD embedding ON knowledge
+DEFINE FIELD embedding ON {table_name}
   TYPE array<float>
   ASSERT array::len($value) = 1536;
 
 -- Re-create the same HNSW index
-DEFINE INDEX idx_knn ON knowledge
+DEFINE INDEX idx_knn ON {table_name}
   FIELDS embedding
   HNSW DIMENSION 1536 DIST COSINE TYPE F64;
-""".format(
-    ns=SURREALDB_NAMESPACE, db=SURREALDB_DATABASE
-)
+"""
 
 DEFAULT_SYSTEM_PROMPT = """
 You are a medical knowledge retrieval assistant who has access to a large database of medical knowledge.
@@ -141,6 +137,7 @@ class Vec:
         surrealdb_database: Optional[str] = SURREALDB_DATABASE,
         surrealdb_user: Optional[str] = SURREALDB_USER,
         surrealdb_pass: Optional[str] = SURREALDB_PASS,
+        surrealdb_table: Optional[str] = "knowledge",
     ) -> None:
         """
         Initialize the Vec instance.
@@ -153,6 +150,8 @@ class Vec:
         :param surrealdb_database: Database name for SurrealDB.
         :param surrealdb_user: Username for SurrealDB authentication.
         :param surrealdb_pass: Password for SurrealDB authentication.
+        :param surrealdb_table: Table name in SurrealDB to store knowledge data.
+        :return: None
         """
         self.client: Optional[AsyncOpenAI] = openai_client
         self.system_prompt = system_prompt
@@ -164,6 +163,7 @@ class Vec:
         self.surrealdb_database = surrealdb_database
         self.surrealdb_user = surrealdb_user
         self.surrealdb_pass = surrealdb_pass
+        self.surrealdb_table = surrealdb_table
 
     async def init(self) -> None:
         """
@@ -191,7 +191,13 @@ class Vec:
             logger.error(f"[ERROR] Failed to use namespace/database: {e}")
             raise
         try:
-            await db.query(knowledge_hsnw_v2)  # type: ignore[no-untyped-call]
+            await db.query(
+                knowledge_hsnw_v2.format(
+                    ns=self.surrealdb_namespace,
+                    db=self.surrealdb_database,
+                    table_name=self.surrealdb_table,
+                )
+            )  # type: ignore[no-untyped-call]
         except Exception as e:
             logger.error(f"[ERROR] Failed to create knowledge table: {e}")
             raise
@@ -216,7 +222,7 @@ class Vec:
         res = await db.query("INFO FOR DB;")  # type: ignore[no-untyped-call]
         logger.debug(f"Database info: {res}")
 
-        res = await db.query("INFO FOR TABLE knowledge;")  # type: ignore[no-untyped-call]
+        res = await db.query(f"INFO FOR TABLE {self.surrealdb_table};")  # type: ignore[no-untyped-call]
         logger.debug(f"Table info: {res}")
 
         if data_type == "jsonl":
@@ -255,7 +261,7 @@ class Vec:
             await self.insert(batch_list, db)
             logger.debug("[SEED] Insert complete.")
 
-        res = await db.query("SELECT id, text FROM knowledge LIMIT 5;")  # type: ignore[no-untyped-call]
+        res = await db.query(f"SELECT id, text FROM {self.surrealdb_table} LIMIT 5;")  # type: ignore[no-untyped-call]
         logger.debug(f"Sample records: {res}")
 
     async def insert(self, batch: BatchList, db: Any) -> None:
@@ -306,11 +312,11 @@ class Vec:
             try:
                 # Build the full query
                 value_tuples = ",\n".join(
-                    f"{{ id: 'knowledge:{b['id']}', text: {json.dumps(b['text'])}, embedding: {json.dumps(e)} }}"
+                    f"{{ id: '{self.surrealdb_table}:{b['id']}', text: {json.dumps(b['text'])}, embedding: {json.dumps(e)} }}"
                     for b, e in zip(batch_dicts, embeds)
                 )
 
-                query = f"INSERT INTO knowledge [{value_tuples}];"
+                query = f"INSERT INTO {self.surrealdb_table} [{value_tuples}];"
                 result = await db.query(query)  # type: ignore[no-untyped-call]
                 logger.debug(f"[OK] Inserted {record_id}")
                 logger.debug(f"SurrealDB result: {result}")

@@ -313,11 +313,14 @@ class Vec:
             except Exception as ex:
                 logger.debug(f"[FAIL] {record_id}: {ex}")
 
-    async def get_context(self, question: str, k: int = 4) -> Optional[List[str]]:
+    async def get_context(
+        self, question: str, k: int = 4, table_name: str = "knowledge"
+    ) -> Optional[List[str]]:
         """
         Retrieve context from the knowledge base for a given question.
         :param question: The question for which context is to be retrieved.
         :param k: The number of nearest neighbors to retrieve (default: 4).
+        :param table_name: The name of the table to query (default: "knowledge").
         :return: List of context strings or None if an error occurs.
         """
         if not self.client:
@@ -338,7 +341,7 @@ class Vec:
         await db.use(SURREALDB_NAMESPACE, SURREALDB_DATABASE)  # type: ignore[no-untyped-call]
 
         # SurrealQL k-NN syntax: <k, COSINE|> $vector
-        q = f"SELECT text FROM knowledge WHERE embedding <|{k}, COSINE|> $vec;"
+        q = f"SELECT text FROM {table_name} WHERE embedding <|{k}, COSINE|> $vec;"
 
         try:
             res = await db.query(q, {"vec": qvec})  # type: ignore[no-untyped-call]

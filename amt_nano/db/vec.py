@@ -208,13 +208,20 @@ class Vec:
             raise
 
     async def seed(
-        self, data_source: str, data_type: str = "json", chunk: int = 96
+        self,
+        data_source: str,
+        data_type: str = "json",
+        chunk: int = 96,
+        files: bool = False,
+        root_file_path: Optional[str] = None,
     ) -> None:
         """
         Seed the vector database with knowledge data.
         :param data_source: Path to the data source file (JSON or JSONL).
         :param data_type: Type of the data source file ('json' or 'jsonl').
         :param chunk: Number of records to insert in each batch.
+        :param files: Whether the JSON passed in refers to files to read.
+        :param root_file_path: Root path to prepend to file names if 'files' is True.
         :return: None
         """
         db = AsyncSurreal(self.db_url)  # type: ignore[no-untyped-call]
@@ -249,16 +256,42 @@ class Vec:
             batch.append(doc)
             if len(batch) == chunk:
                 logger.debug(f"[SEED] Inserting {len(batch)} records...")
-                batch_data = [
-                    {"id": str(d["id"]), "text": str(d["text"])} for d in batch
-                ]
+                if files:
+                    batch_data = []
+                    for d in batch:
+                        file_path = (
+                            d["filename"]
+                            if root_file_path is None
+                            else f"{root_file_path}/{d['filename']}"
+                        )
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            file_text = f.read()
+                        batch_data.append({"id": str(d["id"]), "text": file_text})
+                else:
+                    batch_data = [
+                        {"id": str(d["id"]), "text": str(d["text"])} for d in batch
+                    ]
                 batch_list = BatchList([BatchItem(**d) for d in batch_data])
                 await self.insert(batch_list, db)
                 logger.debug("[SEED] Insert complete.")
                 batch = []
         if batch:
             logger.debug(f"[SEED] Inserting {len(batch)} records...")
-            batch_data = [{"id": str(d["id"]), "text": str(d["text"])} for d in batch]
+            if files:
+                batch_data = []
+                for d in batch:
+                    file_path = (
+                        d["filename"]
+                        if root_file_path is None
+                        else f"{root_file_path}/{d['filename']}"
+                    )
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        file_text = f.read()
+                    batch_data.append({"id": str(d["id"]), "text": file_text})
+            else:
+                batch_data = [
+                    {"id": str(d["id"]), "text": str(d["text"])} for d in batch
+                ]
             batch_list = BatchList([BatchItem(**d) for d in batch_data])
             await self.insert(batch_list, db)
             logger.debug("[SEED] Insert complete.")

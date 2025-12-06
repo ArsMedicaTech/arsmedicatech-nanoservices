@@ -207,11 +207,14 @@ class Vec:
             logger.error(f"[ERROR] Failed to close SurrealDB connection: {e}")
             raise
 
-    async def seed(self, data_source: str, data_type: str = "json") -> None:
+    async def seed(
+        self, data_source: str, data_type: str = "json", chunk: int = 96
+    ) -> None:
         """
         Seed the vector database with knowledge data.
         :param data_source: Path to the data source file (JSON or JSONL).
         :param data_type: Type of the data source file ('json' or 'jsonl').
+        :param chunk: Number of records to insert in each batch.
         :return: None
         """
         db = AsyncSurreal(self.db_url)  # type: ignore[no-untyped-call]
@@ -239,7 +242,6 @@ class Vec:
                 f"Unsupported data type: {data_type}. Supported types are 'jsonl' and 'json'."
             )
 
-        chunk = 96
         batch: List[Dict[str, Any]] = []
         batch_data: List[Dict[str, str]] = []
 

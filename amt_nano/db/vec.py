@@ -361,19 +361,26 @@ class Vec:
             logger.error(f"[ERROR] Unexpected result format from SurrealDB: {res}")
             return None
 
-    async def rag_chat(self, question: str, max_tokens: int = 400, k: int = 4) -> str:
+    async def rag_chat(
+        self,
+        question: str,
+        max_tokens: int = 400,
+        k: int = 4,
+        table_name: str = "knowledge",
+    ) -> str:
         """
         Perform a retrieval-augmented generation (RAG) chat with the OpenAI model.
         :param question: The question to ask the model.
         :param max_tokens: The maximum number of tokens to generate in the response (default: 400).
         :param k: The number of nearest neighbors to retrieve for context (default: 4).
+        :param table_name: The name of the table to query for context (default: "knowledge").
         :return: str: The model's response to the question.
         """
         if not self.client:
             raise ValueError(
                 "This function requires an OpenAI client to be initialized."
             )
-        context = await self.get_context(question, k=k)
+        context = await self.get_context(question, k=k, table_name=table_name)
 
         if not context:
             return "I don't have enough information to answer that question."

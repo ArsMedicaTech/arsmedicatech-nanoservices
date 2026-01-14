@@ -29,47 +29,43 @@ knowledge_hsnw = """
 USE ns {ns} DB {db};
 
 -- Table for each passage / triple
-DEFINE TABLE knowledge
+DEFINE TABLE {table_name}
   PERMISSIONS NONE
   SCHEMAFULL;
 
 -- Add fields
-DEFINE FIELD text       ON knowledge TYPE string;
-DEFINE FIELD embedding  ON knowledge TYPE array;   -- OpenAI returns 1536-floats arrays
+DEFINE FIELD text       ON {table_name} TYPE string;
+DEFINE FIELD embedding  ON {table_name} TYPE array;   -- OpenAI returns 1536-floats arrays
 
 -- Create a 1536-dim HNSW vector index for cosine similarity
-DEFINE INDEX idx_knn ON knowledge
+DEFINE INDEX idx_knn ON {table_name}
   FIELDS embedding
   HNSW DIMENSION 1536 DIST COSINE;
-""".format(
-    ns=SURREALDB_NAMESPACE, db=SURREALDB_DATABASE
-)
+"""
 
 knowledge_hsnw_v2 = """
 -- Switch to your namespace / database
 USE ns {ns} DB {db};
 
 -- Table for each passage / triple
-DEFINE TABLE knowledge
+DEFINE TABLE {table_name}
   PERMISSIONS NONE
   SCHEMAFULL;
 
 -- ONE-TIME migration -------------------------------------------
-REMOVE FIELD embedding ON knowledge;           -- if the field exists
-REMOVE INDEX idx_knn ON knowledge;             -- if the index exists
+REMOVE FIELD embedding ON {table_name};           -- if the field exists
+REMOVE INDEX idx_knn ON {table_name};             -- if the index exists
 
 -- Re-define field as an array of 64-bit floats, dimension 1536
-DEFINE FIELD embedding ON knowledge
+DEFINE FIELD embedding ON {table_name}
   TYPE array<float>
   ASSERT array::len($value) = 1536;
 
 -- Re-create the same HNSW index
-DEFINE INDEX idx_knn ON knowledge
+DEFINE INDEX idx_knn ON {table_name}
   FIELDS embedding
   HNSW DIMENSION 1536 DIST COSINE TYPE F64;
-""".format(
-    ns=SURREALDB_NAMESPACE, db=SURREALDB_DATABASE
-)
+"""
 
 DEFAULT_SYSTEM_PROMPT = """
 You are a medical knowledge retrieval assistant who has access to a large database of medical knowledge.
@@ -137,6 +133,11 @@ class Vec:
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
         embed_model: str = "text-embedding-3-small",
         inference_model: str = "gpt-4.1-nano",
+        surrealdb_namespace: Optional[str] = SURREALDB_NAMESPACE,
+        surrealdb_database: Optional[str] = SURREALDB_DATABASE,
+        surrealdb_user: Optional[str] = SURREALDB_USER,
+        surrealdb_pass: Optional[str] = SURREALDB_PASS,
+        surrealdb_table: Optional[str] = "knowledge",
     ) -> None:
         """
         Initialize the Vec instance.
@@ -145,12 +146,24 @@ class Vec:
         :param system_prompt: A system prompt to guide the model's responses.
         :param embed_model: The OpenAI model to use for embeddings (default: "text-embedding-3-small").
         :param inference_model: The OpenAI model to use for inference (default: "gpt-4.1-nano").
+        :param surrealdb_namespace: Namespace for SurrealDB.
+        :param surrealdb_database: Database name for SurrealDB.
+        :param surrealdb_user: Username for SurrealDB authentication.
+        :param surrealdb_pass: Password for SurrealDB authentication.
+        :param surrealdb_table: Table name in SurrealDB to store knowledge data.
+        :return: None
         """
         self.client: Optional[AsyncOpenAI] = openai_client
         self.system_prompt = system_prompt
         self.db_url = db_url
         self.embed_model = embed_model
         self.model = inference_model
+
+        self.surrealdb_namespace = surrealdb_namespace
+        self.surrealdb_database = surrealdb_database
+        self.surrealdb_user = surrealdb_user
+        self.surrealdb_pass = surrealdb_pass
+        self.surrealdb_table = surrealdb_table
 
     async def init(self) -> None:
         """
@@ -168,21 +181,23 @@ class Vec:
             logger.error(f"[ERROR] Failed to connect to SurrealDB: {e}")
             raise
         try:
-            await db.signin({"username": SURREALDB_USER, "password": SURREALDB_PASS})  # type: ignore[no-untyped-call]
+            await db.signin({"username": self.surrealdb_user, "password": self.surrealdb_pass})  # type: ignore[no-untyped-call]
         except Exception as e:
             logger.error(f"[ERROR] Failed to sign in to SurrealDB: {e}")
             raise
         try:
-            if SURREALDB_NAMESPACE is None or SURREALDB_DATABASE is None:
-                raise ValueError(
-                    "SURREALDB_NAMESPACE and SURREALDB_DATABASE must not be None."
-                )
-            await db.use(SURREALDB_NAMESPACE, SURREALDB_DATABASE)  # type: ignore[no-untyped-call]
+            await db.use(self.surrealdb_namespace, self.surrealdb_database)  # type: ignore[no-untyped-call]
         except Exception as e:
             logger.error(f"[ERROR] Failed to use namespace/database: {e}")
             raise
         try:
-            await db.query(knowledge_hsnw_v2)  # type: ignore[no-untyped-call]
+            await db.query(
+                knowledge_hsnw_v2.format(
+                    ns=self.surrealdb_namespace,
+                    db=self.surrealdb_database,
+                    table_name=self.surrealdb_table,
+                )
+            )  # type: ignore[no-untyped-call]
         except Exception as e:
             logger.error(f"[ERROR] Failed to create knowledge table: {e}")
             raise
@@ -192,26 +207,32 @@ class Vec:
             logger.error(f"[ERROR] Failed to close SurrealDB connection: {e}")
             raise
 
-    async def seed(self, data_source: str, data_type: str = "json") -> None:
+    async def seed(
+        self,
+        data_source: str,
+        data_type: str = "json",
+        chunk: int = 96,
+        files: bool = False,
+        root_file_path: Optional[str] = None,
+    ) -> None:
         """
         Seed the vector database with knowledge data.
         :param data_source: Path to the data source file (JSON or JSONL).
         :param data_type: Type of the data source file ('json' or 'jsonl').
+        :param chunk: Number of records to insert in each batch.
+        :param files: Whether the JSON passed in refers to files to read.
+        :param root_file_path: Root path to prepend to file names if 'files' is True.
         :return: None
         """
-        db = AsyncSurreal(DB_URL)  # type: ignore[no-untyped-call]
+        db = AsyncSurreal(self.db_url)  # type: ignore[no-untyped-call]
         await db.connect()  # type: ignore[no-untyped-call]
-        await db.signin({"username": SURREALDB_USER, "password": SURREALDB_PASS})  # type: ignore[no-untyped-call]
-        if SURREALDB_NAMESPACE is None or SURREALDB_DATABASE is None:
-            raise ValueError(
-                "SURREALDB_NAMESPACE and SURREALDB_DATABASE must not be None."
-            )
-        await db.use(SURREALDB_NAMESPACE, SURREALDB_DATABASE)  # type: ignore[no-untyped-call]
+        await db.signin({"username": self.surrealdb_user, "password": self.surrealdb_pass})  # type: ignore[no-untyped-call]
+        await db.use(self.surrealdb_namespace, self.surrealdb_database)  # type: ignore[no-untyped-call]
 
         res = await db.query("INFO FOR DB;")  # type: ignore[no-untyped-call]
         logger.debug(f"Database info: {res}")
 
-        res = await db.query("INFO FOR TABLE knowledge;")  # type: ignore[no-untyped-call]
+        res = await db.query(f"INFO FOR TABLE {self.surrealdb_table};")  # type: ignore[no-untyped-call]
         logger.debug(f"Table info: {res}")
 
         if data_type == "jsonl":
@@ -228,7 +249,6 @@ class Vec:
                 f"Unsupported data type: {data_type}. Supported types are 'jsonl' and 'json'."
             )
 
-        chunk = 96
         batch: List[Dict[str, Any]] = []
         batch_data: List[Dict[str, str]] = []
 
@@ -236,21 +256,47 @@ class Vec:
             batch.append(doc)
             if len(batch) == chunk:
                 logger.debug(f"[SEED] Inserting {len(batch)} records...")
-                batch_data = [
-                    {"id": str(d["id"]), "text": str(d["text"])} for d in batch
-                ]
+                if files:
+                    batch_data = []
+                    for d in batch:
+                        file_path = (
+                            d["filename"]
+                            if root_file_path is None
+                            else f"{root_file_path}/{d['filename']}"
+                        )
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            file_text = f.read()
+                        batch_data.append({"id": str(d["id"]), "text": file_text})
+                else:
+                    batch_data = [
+                        {"id": str(d["id"]), "text": str(d["text"])} for d in batch
+                    ]
                 batch_list = BatchList([BatchItem(**d) for d in batch_data])
                 await self.insert(batch_list, db)
                 logger.debug("[SEED] Insert complete.")
                 batch = []
         if batch:
             logger.debug(f"[SEED] Inserting {len(batch)} records...")
-            batch_data = [{"id": str(d["id"]), "text": str(d["text"])} for d in batch]
+            if files:
+                batch_data = []
+                for d in batch:
+                    file_path = (
+                        d["filename"]
+                        if root_file_path is None
+                        else f"{root_file_path}/{d['filename']}"
+                    )
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        file_text = f.read()
+                    batch_data.append({"id": str(d["id"]), "text": file_text})
+            else:
+                batch_data = [
+                    {"id": str(d["id"]), "text": str(d["text"])} for d in batch
+                ]
             batch_list = BatchList([BatchItem(**d) for d in batch_data])
             await self.insert(batch_list, db)
             logger.debug("[SEED] Insert complete.")
 
-        res = await db.query("SELECT id, text FROM knowledge LIMIT 5;")  # type: ignore[no-untyped-call]
+        res = await db.query(f"SELECT id, text FROM {self.surrealdb_table} LIMIT 5;")  # type: ignore[no-untyped-call]
         logger.debug(f"Sample records: {res}")
 
     async def insert(self, batch: BatchList, db: Any) -> None:
@@ -301,11 +347,11 @@ class Vec:
             try:
                 # Build the full query
                 value_tuples = ",\n".join(
-                    f"{{ id: 'knowledge:{b['id']}', text: {json.dumps(b['text'])}, embedding: {json.dumps(e)} }}"
+                    f"{{ id: '{self.surrealdb_table}:{b['id']}', text: {json.dumps(b['text'])}, embedding: {json.dumps(e)} }}"
                     for b, e in zip(batch_dicts, embeds)
                 )
 
-                query = f"INSERT INTO knowledge [{value_tuples}];"
+                query = f"INSERT INTO {self.surrealdb_table} [{value_tuples}];"
                 result = await db.query(query)  # type: ignore[no-untyped-call]
                 logger.debug(f"[OK] Inserted {record_id}")
                 logger.debug(f"SurrealDB result: {result}")
@@ -313,11 +359,14 @@ class Vec:
             except Exception as ex:
                 logger.debug(f"[FAIL] {record_id}: {ex}")
 
-    async def get_context(self, question: str, k: int = 4) -> Optional[List[str]]:
+    async def get_context(
+        self, question: str, k: int = 4, table_name: str = "knowledge"
+    ) -> Optional[List[str]]:
         """
         Retrieve context from the knowledge base for a given question.
         :param question: The question for which context is to be retrieved.
         :param k: The number of nearest neighbors to retrieve (default: 4).
+        :param table_name: The name of the table to query (default: "knowledge").
         :return: List of context strings or None if an error occurs.
         """
         if not self.client:
@@ -328,17 +377,13 @@ class Vec:
             model=self.embed_model, input=[question]
         )
         qvec: List[float] = resp.data[0].embedding
-        db = AsyncSurreal(DB_URL)  # type: ignore[no-untyped-call]
+        db = AsyncSurreal(self.db_url)  # type: ignore[no-untyped-call]
         await db.connect()  # type: ignore[no-untyped-call]
-        await db.signin({"username": SURREALDB_USER, "password": SURREALDB_PASS})  # type: ignore[no-untyped-call]
-        if SURREALDB_NAMESPACE is None or SURREALDB_DATABASE is None:
-            raise ValueError(
-                "SURREALDB_NAMESPACE and SURREALDB_DATABASE must not be None."
-            )
-        await db.use(SURREALDB_NAMESPACE, SURREALDB_DATABASE)  # type: ignore[no-untyped-call]
+        await db.signin({"username": self.surrealdb_user, "password": self.surrealdb_pass})  # type: ignore[no-untyped-call]
+        await db.use(self.surrealdb_namespace, self.surrealdb_database)  # type: ignore[no-untyped-call]
 
         # SurrealQL k-NN syntax: <k, COSINE|> $vector
-        q = f"SELECT text FROM knowledge WHERE embedding <|{k}, COSINE|> $vec;"
+        q = f"SELECT text FROM {table_name} WHERE embedding <|{k}, COSINE|> $vec;"
 
         try:
             res = await db.query(q, {"vec": qvec})  # type: ignore[no-untyped-call]
@@ -358,18 +403,26 @@ class Vec:
             logger.error(f"[ERROR] Unexpected result format from SurrealDB: {res}")
             return None
 
-    async def rag_chat(self, question: str, max_tokens: int = 400) -> str:
+    async def rag_chat(
+        self,
+        question: str,
+        max_tokens: int = 400,
+        k: int = 4,
+        table_name: str = "knowledge",
+    ) -> str:
         """
         Perform a retrieval-augmented generation (RAG) chat with the OpenAI model.
         :param question: The question to ask the model.
         :param max_tokens: The maximum number of tokens to generate in the response (default: 400).
+        :param k: The number of nearest neighbors to retrieve for context (default: 4).
+        :param table_name: The name of the table to query for context (default: "knowledge").
         :return: str: The model's response to the question.
         """
         if not self.client:
             raise ValueError(
                 "This function requires an OpenAI client to be initialized."
             )
-        context = await self.get_context(question, k=4)
+        context = await self.get_context(question, k=k, table_name=table_name)
 
         if not context:
             return "I don't have enough information to answer that question."

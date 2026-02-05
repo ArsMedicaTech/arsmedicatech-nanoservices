@@ -344,9 +344,11 @@ class Vec:
 
         try:
             # 4. Use a single UPSERT to handle both new and existing records
-            query = f"UPSERT {self.surrealdb_table} CONTENT $data;"
+            # query = f"UPSERT {self.surrealdb_table} CONTENT $data;"
 
-            result = await db.query(query, {"data": items})
+            # result = await db.query(query, {"data": items})
+
+            result = await db.upsert(self.surrealdb_table, items)  # type: ignore[no-untyped-call]
             # self.logger.debug(f"[DEBUG] SurrealDB UPSERT result: {json.dumps(result, indent=2)}")
             self.logger.debug(
                 f"[DEBUG] SurrealDB UPSERT result: {str(result)[:500]}..."

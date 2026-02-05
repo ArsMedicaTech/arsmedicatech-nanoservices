@@ -349,9 +349,10 @@ class Vec:
             # 4. Use a single UPSERT to handle both new and existing records
             query = f"UPSERT {self.surrealdb_table} CONTENT $data;"
             result = await db.query(query, {"data": items})
+            # self.logger.debug(f"[DEBUG] SurrealDB UPSERT result: {json.dumps(result, indent=2)}")
             self.logger.debug(
-                f"[DEBUG] SurrealDB UPSERT result: {json.dumps(result, indent=2)}"
-            )
+                f"[DEBUG] SurrealDB UPSERT result: {str(result)[:500]}..."
+            )  # Log only the beginning of the result for brevity
             self.logger.debug(f"[OK] Processed {len(items)} records.")
         except Exception as ex:
             self.logger.error(f"[FAIL] Batch insertion failed: {ex}")

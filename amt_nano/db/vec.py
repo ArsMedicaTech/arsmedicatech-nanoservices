@@ -354,6 +354,16 @@ class Vec:
                 f"[DEBUG] SurrealDB UPSERT result: {str(result)[:500]}..."
             )  # Log only the beginning of the result for brevity
 
+            print(f"Type of result: {type(result)}")
+
+            if isinstance(result, str):
+                first_500_chars = result[:500]
+                last_500_chars = result[-500:]
+                self.logger.error(
+                    f"SURREALDB ERROR: Result is a string. First 500 chars: {first_500_chars}... Last 500 chars: ...{last_500_chars}"
+                )
+                return
+
             # Check for errors in the SurrealDB response list
             if isinstance(result, list) and len(result) > 0:
                 print(result[0].keys())

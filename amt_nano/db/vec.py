@@ -331,37 +331,30 @@ class Vec:
         resp = await self.client.embeddings.create(model=self.embed_model, input=texts)
         embeds: List[List[float]] = [e.embedding for e in resp.data]
 
-        inserted = 0
-        for i, (b, e) in enumerate(zip(batch_dicts, embeds)):
-            record_id = f"knowledge:{b['id']}"
-            self.logger.debug(f"\n[DEBUG] RECORD {i} → {record_id}")
-            self.logger.debug(f"  → type(embedding): {type(e)}")
-            self.logger.debug(f"  → type(e[0]): {type(e[0]) if e else 'N/A'}")
-            self.logger.debug(f"  → len(embedding): {len(e) if e else 'N/A'}")
-            self.logger.debug(f"  → sample values: {e[:5] if e else 'N/A'}")
-            # Surreal expects: array<float>
-            if not all(isinstance(x, float) for x in e):
-                bad_types = {type(x) for x in e}
-                self.logger.error(f"Non-float types in embedding: {bad_types}")
-                continue
-            if len(e) != 1536:
-                self.logger.error(f"Bad vector length: {len(e)}")
-                continue
+        items = []
+        for b, e in zip(batch_dicts, embeds):
+            items.append(
+                {
+                    "id": (
+                        f"{self.surrealdb_table}:{b['id']}"
+                        if ":" not in b["id"]
+                        else b["id"]
+                    ),
+                    "text": b["text"],
+                    "embedding": e,
+                }
+            )
 
-            try:
-                # Build the full query
-                value_tuples = ",\n".join(
-                    f"{{ id: '{self.surrealdb_table}:{b['id']}', text: {json.dumps(b['text'])}, embedding: {json.dumps(e)} }}"
-                    for b, e in zip(batch_dicts, embeds)
-                )
-
-                query = f"INSERT INTO {self.surrealdb_table} [{value_tuples}];"
-                result = await db.query(query)  # type: ignore[no-untyped-call]
-                self.logger.debug(f"[OK] Inserted {record_id}")
-                self.logger.debug(f"SurrealDB result: {result}")
-                inserted += 1
-            except Exception as ex:
-                self.logger.debug(f"[FAIL] {record_id}: {ex}")
+        try:
+            # 4. Use a single UPSERT to handle both new and existing records
+            query = f"UPSERT {self.surrealdb_table} CONTENT $data;"
+            result = await db.query(query, {"data": items})
+            self.logger.debug(
+                f"[DEBUG] SurrealDB UPSERT result: {json.dumps(result, indent=2)}"
+            )
+            self.logger.debug(f"[OK] Processed {len(items)} records.")
+        except Exception as ex:
+            self.logger.error(f"[FAIL] Batch insertion failed: {ex}")
 
     async def get_context(
         self, question: str, k: int = 4, table_name: str = "knowledge"

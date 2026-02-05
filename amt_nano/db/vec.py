@@ -138,6 +138,7 @@ class Vec:
         surrealdb_user: Optional[str] = SURREALDB_USER,
         surrealdb_pass: Optional[str] = SURREALDB_PASS,
         surrealdb_table: Optional[str] = "knowledge",
+        logger: Any = logger,
     ) -> None:
         """
         Initialize the Vec instance.
@@ -151,6 +152,7 @@ class Vec:
         :param surrealdb_user: Username for SurrealDB authentication.
         :param surrealdb_pass: Password for SurrealDB authentication.
         :param surrealdb_table: Table name in SurrealDB to store knowledge data.
+        :param logger: Logger instance for logging.
         :return: None
         """
         self.client: Optional[AsyncOpenAI] = openai_client
@@ -165,6 +167,8 @@ class Vec:
         self.surrealdb_pass = surrealdb_pass
         self.surrealdb_table = surrealdb_table
 
+        self.logger = logger
+
     async def init(self) -> None:
         """
         Initialize the vector database.
@@ -178,17 +182,17 @@ class Vec:
         try:
             await db.connect()  # type: ignore[no-untyped-call]
         except Exception as e:
-            logger.error(f"[ERROR] Failed to connect to SurrealDB: {e}")
+            self.logger.error(f"[ERROR] Failed to connect to SurrealDB: {e}")
             raise
         try:
             await db.signin({"username": self.surrealdb_user, "password": self.surrealdb_pass})  # type: ignore[no-untyped-call]
         except Exception as e:
-            logger.error(f"[ERROR] Failed to sign in to SurrealDB: {e}")
+            self.logger.error(f"[ERROR] Failed to sign in to SurrealDB: {e}")
             raise
         try:
             await db.use(self.surrealdb_namespace, self.surrealdb_database)  # type: ignore[no-untyped-call]
         except Exception as e:
-            logger.error(f"[ERROR] Failed to use namespace/database: {e}")
+            self.logger.error(f"[ERROR] Failed to use namespace/database: {e}")
             raise
         try:
             await db.query(
@@ -199,12 +203,12 @@ class Vec:
                 )
             )  # type: ignore[no-untyped-call]
         except Exception as e:
-            logger.error(f"[ERROR] Failed to create knowledge table: {e}")
+            self.logger.error(f"[ERROR] Failed to create knowledge table: {e}")
             raise
         try:
             await db.close()  # type: ignore[no-untyped-call]
         except Exception as e:
-            logger.error(f"[ERROR] Failed to close SurrealDB connection: {e}")
+            self.logger.error(f"[ERROR] Failed to close SurrealDB connection: {e}")
             raise
 
     async def seed(
@@ -230,10 +234,10 @@ class Vec:
         await db.use(self.surrealdb_namespace, self.surrealdb_database)  # type: ignore[no-untyped-call]
 
         res = await db.query("INFO FOR DB;")  # type: ignore[no-untyped-call]
-        logger.debug(f"Database info: {res}")
+        self.logger.debug(f"Database info: {res}")
 
         res = await db.query(f"INFO FOR TABLE {self.surrealdb_table};")  # type: ignore[no-untyped-call]
-        logger.debug(f"Table info: {res}")
+        self.logger.debug(f"Table info: {res}")
 
         if data_type == "jsonl":
             docs: List[Dict[str, Any]] = [
@@ -255,7 +259,7 @@ class Vec:
         for doc in docs:
             batch.append(doc)
             if len(batch) == chunk:
-                logger.debug(f"[SEED] Inserting {len(batch)} records...")
+                self.logger.debug(f"[SEED] Inserting {len(batch)} records...")
                 if files:
                     batch_data = []
                     for d in batch:
@@ -273,10 +277,10 @@ class Vec:
                     ]
                 batch_list = BatchList([BatchItem(**d) for d in batch_data])
                 await self.insert(batch_list, db)
-                logger.debug("[SEED] Insert complete.")
+                self.logger.debug("[SEED] Insert complete.")
                 batch = []
         if batch:
-            logger.debug(f"[SEED] Inserting {len(batch)} records...")
+            self.logger.debug(f"[SEED] Inserting {len(batch)} records...")
             if files:
                 batch_data = []
                 for d in batch:
@@ -294,10 +298,10 @@ class Vec:
                 ]
             batch_list = BatchList([BatchItem(**d) for d in batch_data])
             await self.insert(batch_list, db)
-            logger.debug("[SEED] Insert complete.")
+            self.logger.debug("[SEED] Insert complete.")
 
         res = await db.query(f"SELECT id, text FROM {self.surrealdb_table} LIMIT 5;")  # type: ignore[no-untyped-call]
-        logger.debug(f"Sample records: {res}")
+        self.logger.debug(f"Sample records: {res}")
 
     async def insert(self, batch: BatchList, db: Any) -> None:
         """
@@ -312,11 +316,12 @@ class Vec:
             )
 
         if not batch.data:
-            logger.warning("Batch is empty. Nothing to insert.")
+            self.logger.warning("Batch is empty. Nothing to insert.")
             return
         # All items in batch.data are guaranteed to be BatchItem instances by BatchList validation.
-        logger.debug(f"[DEBUG] Inserting {len(batch.data)} records into SurrealDB...")
-
+        self.logger.debug(
+            f"[DEBUG] Inserting {len(batch.data)} records into SurrealDB..."
+        )
         # Prepare the batch for OpenAI embedding
         batch_dicts = [
             item.__dict__ for item in batch.data
@@ -329,19 +334,18 @@ class Vec:
         inserted = 0
         for i, (b, e) in enumerate(zip(batch_dicts, embeds)):
             record_id = f"knowledge:{b['id']}"
-            logger.debug(f"\n[DEBUG] RECORD {i} → {record_id}")
-            logger.debug(f"  → type(embedding): {type(e)}")
-            logger.debug(f"  → type(e[0]): {type(e[0]) if e else 'N/A'}")
-            logger.debug(f"  → len(embedding): {len(e) if e else 'N/A'}")
-            logger.debug(f"  → sample values: {e[:5] if e else 'N/A'}")
-
+            self.logger.debug(f"\n[DEBUG] RECORD {i} → {record_id}")
+            self.logger.debug(f"  → type(embedding): {type(e)}")
+            self.logger.debug(f"  → type(e[0]): {type(e[0]) if e else 'N/A'}")
+            self.logger.debug(f"  → len(embedding): {len(e) if e else 'N/A'}")
+            self.logger.debug(f"  → sample values: {e[:5] if e else 'N/A'}")
             # Surreal expects: array<float>
             if not all(isinstance(x, float) for x in e):
                 bad_types = {type(x) for x in e}
-                logger.error(f"Non-float types in embedding: {bad_types}")
+                self.logger.error(f"Non-float types in embedding: {bad_types}")
                 continue
             if len(e) != 1536:
-                logger.error(f"Bad vector length: {len(e)}")
+                self.logger.error(f"Bad vector length: {len(e)}")
                 continue
 
             try:
@@ -353,11 +357,11 @@ class Vec:
 
                 query = f"INSERT INTO {self.surrealdb_table} [{value_tuples}];"
                 result = await db.query(query)  # type: ignore[no-untyped-call]
-                logger.debug(f"[OK] Inserted {record_id}")
-                logger.debug(f"SurrealDB result: {result}")
+                self.logger.debug(f"[OK] Inserted {record_id}")
+                self.logger.debug(f"SurrealDB result: {result}")
                 inserted += 1
             except Exception as ex:
-                logger.debug(f"[FAIL] {record_id}: {ex}")
+                self.logger.debug(f"[FAIL] {record_id}: {ex}")
 
     async def get_context(
         self, question: str, k: int = 4, table_name: str = "knowledge"
@@ -387,9 +391,11 @@ class Vec:
 
         try:
             res = await db.query(q, {"vec": qvec})  # type: ignore[no-untyped-call]
-            logger.debug(f"[DEBUG] Raw SurrealDB result: {json.dumps(res, indent=2)}")
+            self.logger.debug(
+                f"[DEBUG] Raw SurrealDB result: {json.dumps(res, indent=2)}"
+            )
         except Exception as e:
-            logger.error(f"[ERROR] Exception while querying SurrealDB: {e}")
+            self.logger.error(f"[ERROR] Exception while querying SurrealDB: {e}")
             return None
         finally:
             await db.close()  # type: ignore[no-untyped-call]
@@ -400,7 +406,7 @@ class Vec:
         elif "result" in res and isinstance(res["result"], list):
             return [row["text"] for row in res["result"] if isinstance(row, dict) and "text" in row]  # type: ignore
         else:
-            logger.error(f"[ERROR] Unexpected result format from SurrealDB: {res}")
+            self.logger.error(f"[ERROR] Unexpected result format from SurrealDB: {res}")
             return None
 
     async def rag_chat(

@@ -333,13 +333,11 @@ class Vec:
 
         items = []
         for b, e in zip(batch_dicts, embeds):
+            # REMOVE the table prefix if it exists to avoid coaching:coaching:ID
+            raw_id = b["id"].split(":")[-1]
             items.append(
                 {
-                    "id": (
-                        f"{self.surrealdb_table}:{b['id']}"
-                        if ":" not in b["id"]
-                        else b["id"]
-                    ),
+                    "id": f"{self.surrealdb_table}:{raw_id}",
                     "text": b["text"],
                     "embedding": e,
                 }

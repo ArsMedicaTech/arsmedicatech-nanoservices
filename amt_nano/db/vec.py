@@ -49,8 +49,7 @@ USE ns {ns} DB {db};
 
 -- Table for each passage / triple
 DEFINE TABLE {table_name}
-  PERMISSIONS NONE
-  SCHEMAFULL;
+  PERMISSIONS NONE;
 
 -- ONE-TIME migration -------------------------------------------
 REMOVE FIELD embedding ON {table_name};           -- if the field exists
@@ -345,7 +344,7 @@ class Vec:
 
         try:
             # 4. Use a single UPSERT to handle both new and existing records
-            query = f"INSERT INTO {self.surrealdb_table} $data ON DUPLICATE KEY UPDATE text = $after.text, embedding = $after.embedding;"
+            query = f"UPSERT {self.surrealdb_table} CONTENT $data;"
 
             result = await db.query(query, {"data": items})
             # self.logger.debug(f"[DEBUG] SurrealDB UPSERT result: {json.dumps(result, indent=2)}")

@@ -353,6 +353,13 @@ class Vec:
             self.logger.debug(
                 f"[DEBUG] SurrealDB UPSERT result: {str(result)[:500]}..."
             )  # Log only the beginning of the result for brevity
+
+            # Check for errors in the SurrealDB response list
+            if isinstance(result, list) and len(result) > 0:
+                if "status" in result[0] and result[0]["status"] == "ERR":
+                    self.logger.error(f"SURREALDB ERROR: {result[0]['detail']}")
+                    return  # Stop here so you don't think it succeeded
+
             self.logger.debug(f"[OK] Processed {len(items)} records.")
         except Exception as ex:
             self.logger.error(f"[FAIL] Batch insertion failed: {ex}")

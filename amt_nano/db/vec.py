@@ -356,6 +356,7 @@ class Vec:
 
             # Check for errors in the SurrealDB response list
             if isinstance(result, list) and len(result) > 0:
+                print(result[0].keys())
                 if "status" in result[0] and result[0]["status"] == "ERR":
                     self.logger.error(f"SURREALDB ERROR: {result[0]['detail']}")
                     return  # Stop here so you don't think it succeeded

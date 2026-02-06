@@ -348,7 +348,17 @@ class Vec:
 
             # result = await db.query(query, {"data": items})
 
-            result = await db.upsert(self.surrealdb_table, items)  # type: ignore[no-untyped-call]
+            # result = await db.upsert(self.surrealdb_table, items)  # type: ignore[no-untyped-call]
+
+            query = f"""
+            INSERT INTO {self.surrealdb_table} $data 
+            ON DUPLICATE KEY UPDATE 
+                text = $value.text, 
+                embedding = $value.embedding;
+            """
+
+            result = await db.query(query, {"data": items})
+
             # self.logger.debug(f"[DEBUG] SurrealDB UPSERT result: {json.dumps(result, indent=2)}")
             self.logger.debug(
                 f"[DEBUG] SurrealDB UPSERT result: {str(result)[:500]}..."

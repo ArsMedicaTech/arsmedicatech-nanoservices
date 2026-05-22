@@ -408,6 +408,7 @@ class Vec:
         await db.use(self.surrealdb_namespace, self.surrealdb_database)  # type: ignore[no-untyped-call]
 
         # SurrealQL k-NN syntax: <k, COSINE|> $vector
+        # TODO: Idea... somehow filter by tags... like: WHERE "tag" IN $tags AND embedding <|{k}, COSINE|> $vec
         q = f"SELECT text FROM {table_name} WHERE embedding <|{k}, COSINE|> $vec;"
 
         try:

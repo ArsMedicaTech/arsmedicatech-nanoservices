@@ -74,6 +74,18 @@ class SurrealWrapper:
         """
         return self._client.update(thing, data)
 
+    def merge(
+        self, thing: Union[str, RecordID, Table], data: Dict[str, Any]
+    ) -> Union[str, Dict[str, Any], List[Dict[str, Any]], None]:
+        """
+        Merge a partial record update in the database.
+
+        :param thing: str or Record ID or table
+        :param data: Dictionary of data to merge
+        :return: Merged record
+        """
+        return self._client.merge(thing, data)
+
     def use(self, namespace: str, database: str) -> None:
         """
         Set the namespace and database for the current session.
@@ -128,6 +140,11 @@ class AsyncSurrealWrapper:
         self, thing: Union[str, RecordID, Table], data: Dict[str, Any]
     ) -> Union[str, Dict[str, Any], List[Dict[str, Any]], None]:
         return await self._client.update(thing, data)
+
+    async def merge(
+        self, thing: Union[str, RecordID, Table], data: Dict[str, Any]
+    ) -> Union[str, Dict[str, Any], List[Dict[str, Any]], None]:
+        return await self._client.merge(thing, data)
 
     async def use(self, namespace: str, database: str) -> None:
         await self._client.use(namespace, database)
@@ -329,6 +346,25 @@ class DbController:
             )
         result = self.db.update(thing, data)
         logger.debug(f"SurrealDB update result: {result}")
+        return result
+
+    def merge(
+        self, thing: Union[str, RecordID, Table], data: Dict[str, Any]
+    ) -> Union[str, Dict[str, Any], List[Dict[str, Any]], None]:
+        """
+        Merge a partial record update
+
+        :param thing: str or Record ID or table
+        :param data: Dictionary of data to merge
+        :return: Merged record
+        """
+        logger.debug(f"SurrealDB merge thing: {thing}")
+        if self.db is None:
+            raise RuntimeError(
+                "Database connection is not established. Call connect() before performing operations."
+            )
+        result = self.db.merge(thing, data)
+        logger.debug(f"SurrealDB merge result: {result}")
         return result
 
     def search(
@@ -570,6 +606,25 @@ class AsyncDbController:
             )
         result = await self.db.update(thing, data)
         logger.debug(f"SurrealDB update result: {result}")
+        return result
+
+    async def merge(
+        self, thing: Union[str, RecordID, Table], data: Dict[str, Any]
+    ) -> Union[str, Dict[str, Any], List[Dict[str, Any]], None]:
+        """
+        Merge a partial record update
+
+        :param thing: str or Record ID or table
+        :param data: Dictionary of data to merge
+        :return: Merged record
+        """
+        logger.debug(f"SurrealDB merge thing: {thing}")
+        if self.db is None:
+            raise RuntimeError(
+                "Database connection is not established. Call connect() before performing operations."
+            )
+        result = await self.db.merge(thing, data)
+        logger.debug(f"SurrealDB merge result: {result}")
         return result
 
     async def close(self) -> None:

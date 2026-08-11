@@ -296,7 +296,15 @@ class ICDAutoCoderService:
 
         logger.info(f"No cache found for text hash: {text_hash}, processing")
 
-        original_entities = self.ner_concept_extraction(self.text)
+        try:
+            original_entities = self.ner_concept_extraction(self.text)
+        except (RuntimeError, requests.RequestException) as e:
+            logger.warning(f"NER unavailable, returning suggestions disabled: {e}")
+            return IcdAutocoderResponse(
+                schema_version=2, spans=[], non_asserted_spans=[],
+                cached=False, ranking_applied=False,
+            )
+        
         candidate_entities = [
             e for e in original_entities if e["assertion"] in CANDIDATE_ASSERTIONS
         ]

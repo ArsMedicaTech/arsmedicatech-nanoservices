@@ -14,43 +14,48 @@ def store_entity_cache(
     text_hash: str,
     entities: List[Dict[str, Any]],
     note_type: str = "text",
+    non_asserted_spans: Optional[List[Dict[str, Any]]] = None,
+    ranking_applied: bool = False,
 ) -> bool:
     """
-    Store entity extraction results in SurrealDB for caching.
+    Store autocoder results in SurrealDB for caching.
+
+    Persists the full span record so character offsets and assertions survive
+    the cache round-trip.
 
     :param db: DbController instance connected to SurrealDB.
     :param text_hash: SHA256 hash of the original text for cache key
-    :param entities: List of extracted entities (without position data)
+    :param entities: List of asserted spans with full position data and candidates
     :param note_type: Type of note (soap or text)
+    :param non_asserted_spans: List of non-asserted spans
+    :param ranking_applied: Whether ranking was applied before caching
     :return: True if successful, False otherwise
     """
     try:
-        # Remove position data for storage (keep only the essential entity info)
-        entities_for_storage: List[Dict[str, Any]] = []
-        for entity in entities:
-            entity_copy: Dict[str, Any] = {
-                "text": entity.get("text", ""),
-                "label": entity.get("label", ""),
-                "cui": entity.get("cui"),
-                "icd10cm": entity.get("icd10cm"),
-                "icd10cm_name": entity.get("icd10cm_name"),
-            }
-            entities_for_storage.append(entity_copy)
+        non_asserted_spans = non_asserted_spans or []
 
         cache_data: Dict[str, Any] = {
             "text_hash": text_hash,
-            "entities": entities_for_storage,
+            "spans": entities,
+            "non_asserted_spans": non_asserted_spans,
+            "ranking_applied": ranking_applied,
             "note_type": note_type,
             "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "entity_count": len(entities_for_storage),
+            "entity_count": len(entities) + len(non_asserted_spans),
         }
 
-        # Store in SurrealDB
-        result = db.query(
-            "CREATE entity_cache CONTENT $cache_data", {"cache_data": cache_data}
+        existing = db.query(
+            "SELECT id FROM ONLY entity_cache WHERE text_hash = $text_hash",
+            {"text_hash": text_hash},
         )
 
-        logger.debug(f"Stored entity cache: {result} for hash: {text_hash}")
+        if isinstance(existing, dict) and existing.get("id") is not None:
+            record_id = existing["id"]
+            db.merge(record_id, cache_data)
+        else:
+            db.create("entity_cache", cache_data)
+
+        logger.debug(f"Stored entity cache for hash: {text_hash}")
         return True
 
     except Exception as e:
@@ -87,16 +92,19 @@ def get_entity_cache(
         return None
 
 
-def create_text_hash(text: str) -> str:
+def create_text_hash(text: str, schema_version: int = 2) -> str:
     """
-    Create a SHA256 hash of the text for cache key.
+    Create a SHA256 hash of the text for cache key, including a schema version.
 
     :param text: Text to hash
+    :param schema_version: Cache schema version to include in the digest
     :return: SHA256 hash string
     """
     import hashlib
 
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return hashlib.sha256(
+        f"{schema_version}:{text}".encode("utf-8")
+    ).hexdigest()
 
 
 class EntityCacheService:

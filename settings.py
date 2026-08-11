@@ -26,6 +26,27 @@ SURREALDB_URL = f"{SURREALDB_PROTOCOL}://{SURREALDB_HOST}:{SURREALDB_PORT}"
 
 SURREALDB_ICD_DB = os.environ.get("SURREALDB_ICD_DB", "diagnosis")
 
+# NER service
+NER_SERVICE_URL = os.environ.get(
+    "NER_SERVICE_URL",
+    "http://ner.arsmedicatech-oss.svc.cluster.local/ner/extract",
+)
+NER_TIMEOUT_SECONDS = float(os.environ.get("NER_TIMEOUT_SECONDS", "10"))
+
+# Typesense ICD-10-CM search
+TYPESENSE_URL = os.environ.get("TYPESENSE_URL", "")
+TYPESENSE_API_KEY = os.environ.get("TYPESENSE_API_KEY", "")
+TYPESENSE_ICD_COLLECTION = os.environ.get("TYPESENSE_ICD_COLLECTION", "icd_codes")
+
+# UMLS (optional)
+UMLS_API_KEY = os.environ.get("UMLS_API_KEY", "")
+
+# ICD ranking LLM (optional, default off)
+ICD_RANKING_ENABLED = (
+    os.environ.get("ICD_RANKING_ENABLED", "false").lower() == "true"
+)
+ICD_RANKING_MODEL = os.environ.get("ICD_RANKING_MODEL", "")
+
 
 REDIS_HOST = os.environ.get("SURREALDB_ICD_DB", "diagnosis")
 REDIS_PORT = int(os.environ.get("SURREALDB_ICD_DB", 0))
@@ -35,7 +56,6 @@ BUCKET_NAME = os.environ.get("SURREALDB_ICD_DB", "diagnosis")
 TEXTRACT_AWS_ACCESS_KEY_ID = os.environ.get("SURREALDB_ICD_DB", "diagnosis")
 TEXTRACT_AWS_SECRET_ACCESS_KEY = os.environ.get("SURREALDB_ICD_DB", "diagnosis")
 
-UMLS_API_KEY = os.environ.get("SURREALDB_ICD_DB", "diagnosis")
 ENCRYPTION_KEY = os.environ.get("SURREALDB_ICD_DB", "diagnosis")
 
 print("SUREALDB_NAMESPACE:", SURREALDB_NAMESPACE)

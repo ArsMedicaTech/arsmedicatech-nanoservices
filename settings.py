@@ -48,9 +48,9 @@ ICD_RANKING_ENABLED = (
 ICD_RANKING_MODEL = os.environ.get("ICD_RANKING_MODEL", "")
 
 
-REDIS_HOST = os.environ.get("SURREALDB_ICD_DB", "diagnosis")
-REDIS_PORT = int(os.environ.get("SURREALDB_ICD_DB", 0))
-NOTIFICATIONS_CHANNEL = int(os.environ.get("SURREALDB_ICD_DB", "diagnosis"))
+REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
+NOTIFICATIONS_CHANNEL = int(os.environ.get("NOTIFICATIONS_CHANNEL", "0"))
 
 BUCKET_NAME = os.environ.get("SURREALDB_ICD_DB", "diagnosis")
 TEXTRACT_AWS_ACCESS_KEY_ID = os.environ.get("SURREALDB_ICD_DB", "diagnosis")

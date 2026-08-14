@@ -384,31 +384,49 @@ class Vec:
         except Exception as ex:
             self.logger.error(f"[FAIL] Batch insertion failed: {ex}")
 
-    async def get_context(
-        self, question: str, k: int = 4, table_name: str = "knowledge"
-    ) -> Optional[List[str]]:
+    async def embed_one(self, text: str) -> List[float]:
         """
-        Retrieve context from the knowledge base for a given question.
-        :param question: The question for which context is to be retrieved.
-        :param k: The number of nearest neighbors to retrieve (default: 4).
-        :param table_name: The name of the table to query (default: "knowledge").
-        :return: List of context strings or None if an error occurs.
+        Embed a single string with self.embed_model. No DB access.
+        :param text: The string to embed.
+        :return: The embedding vector.
         """
         if not self.client:
             raise ValueError(
                 "This function requires an OpenAI client to be initialized."
             )
         resp = await self.client.embeddings.create(
-            model=self.embed_model, input=[question]
+            model=self.embed_model, input=[text]
         )
-        qvec: List[float] = resp.data[0].embedding
+        return resp.data[0].embedding
+
+    async def get_context_records(
+        self,
+        question: str,
+        k: int = 4,
+        table_name: str = "knowledge",
+        fields: str = "id, text",
+        where: Optional[str] = None,
+    ) -> Optional[List[Dict[str, Any]]]:
+        """
+        Retrieve full records from the knowledge base for a given question.
+        :param question: The question for which records are to be retrieved.
+        :param k: The number of nearest neighbors to retrieve (default: 4).
+        :param table_name: The name of the table to query (default: "knowledge").
+        :param fields: Comma-separated fields to project in the result (default: "id, text").
+        :param where: Optional SurrealQL WHERE clause to further filter results.
+        :return: List of record dicts or None if an error occurs.
+        """
+        qvec = await self.embed_one(question)
         db = AsyncSurreal(self.db_url)  # type: ignore[no-untyped-call]
         await db.connect()  # type: ignore[no-untyped-call]
         await db.signin({"username": self.surrealdb_user, "password": self.surrealdb_pass})  # type: ignore[no-untyped-call]
         await db.use(self.surrealdb_namespace, self.surrealdb_database)  # type: ignore[no-untyped-call]
 
         # SurrealQL k-NN syntax: <k, COSINE|> $vector
-        q = f"SELECT text FROM {table_name} WHERE embedding <|{k}, COSINE|> $vec;"
+        q = f"SELECT {fields} FROM {table_name} WHERE embedding <|{k}, COSINE|> $vec"
+        if where:
+            q += f" AND ({where})"
+        q += ";"
 
         try:
             res = await db.query(q, {"vec": qvec})  # type: ignore[no-untyped-call]
@@ -421,14 +439,34 @@ class Vec:
         finally:
             await db.close()  # type: ignore[no-untyped-call]
 
-        # Ensure 'res' is a list of dicts containing 'text'
+        # Ensure 'res' is a list of dicts
         if isinstance(res, list):
-            return [row["text"] for row in res if isinstance(row, dict) and "text" in row]  # type: ignore
-        elif "result" in res and isinstance(res["result"], list):
-            return [row["text"] for row in res["result"] if isinstance(row, dict) and "text" in row]  # type: ignore
+            return [row for row in res if isinstance(row, dict)]
+        elif isinstance(res, dict) and "result" in res and isinstance(res["result"], list):
+            return [row for row in res["result"] if isinstance(row, dict)]
         else:
             self.logger.error(f"[ERROR] Unexpected result format from SurrealDB: {res}")
             return None
+
+    async def get_context(
+        self, question: str, k: int = 4, table_name: str = "knowledge"
+    ) -> Optional[List[str]]:
+        """
+        Retrieve context from the knowledge base for a given question.
+        :param question: The question for which context is to be retrieved.
+        :param k: The number of nearest neighbors to retrieve (default: 4).
+        :param table_name: The name of the table to query (default: "knowledge").
+        :return: List of context strings or None if an error occurs.
+        """
+        records = await self.get_context_records(
+            question=question,
+            k=k,
+            table_name=table_name,
+            fields="text",
+        )
+        if records is None:
+            return None
+        return [row["text"] for row in records if "text" in row]
 
     async def rag_chat(
         self,
